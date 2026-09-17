@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import io
+from typing import TYPE_CHECKING
 
 import torch
 import requests
 from PIL import Image
-from transformers import CLIPModel, CLIPProcessor
+
+if TYPE_CHECKING:
+    from transformers import CLIPModel, CLIPProcessor
 
 
 def download_image(url: str) -> Image.Image:

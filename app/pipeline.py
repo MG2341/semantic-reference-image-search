@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import torch
-from transformers import CLIPModel, CLIPProcessor
 
 from app.config import MODEL_NAME
-from app.db.postgres import init_db
+from app.db.local_vector import init_db
 from app.services.embedding_service import (
     cosine_similarity,
     download_image,
@@ -15,6 +14,8 @@ from app.services.storage_service import save_image_embedding
 
 
 def run_demo(image_url: str) -> None:
+    from transformers import CLIPModel, CLIPProcessor
+
     init_db()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -1,25 +1,39 @@
 # Reference Image Searcher
 
-This is the minimal version of the project: a simple semantic search pipeline using CLIP.
+This is a small semantic search pipeline using CLIP and a local Qdrant vector store.
 
 ## What this repo does
 
 - downloads one sample image
 - creates an image embedding with CLIP
 - creates text embeddings for search queries
-- compares them using cosine similarity
+- stores the image embedding locally
+- compares the image and text embeddings using cosine similarity
 - prints the closest matching text description
 
-## Main file
+## Main files
 
-- `image_embed.py` – the complete basic pipeline
+- `main.py` – starts the demo
+- `app/pipeline.py` – coordinates model loading, embedding, storage, and comparison
+- `app/services/embedding_service.py` – downloads images and creates embeddings
+- `app/db/local_vector.py` – stores embeddings in the local `data/` directory
+
+## Running locally
+
+This project does not require Docker or PostgreSQL. Install the Python dependencies and run:
+
+```powershell
+pip install -r requirements.txt
+python main.py
+```
+
+Qdrant runs in local persistent mode and creates its database in `data/`. No Docker,
+PostgreSQL, or separate database server is required.
 
 ## Why this is the starting point
 
 This keeps the project focused on the core idea before we add:
 
 - batch ingestion
-- persistence
-- a vector database
 - API endpoints
 - production error handling
