@@ -8,8 +8,8 @@ This is a small semantic search pipeline using CLIP and a local Qdrant vector st
 - creates an image embedding with CLIP
 - creates text embeddings for search queries
 - stores the image embedding locally
-- compares the image and text embeddings using cosine similarity
-- prints the closest matching text description
+- searches stored images using natural-language queries
+- returns the `k` images whose embeddings best match the query
 
 ## Main files
 
@@ -25,6 +25,12 @@ This project does not require Docker or PostgreSQL. Install the Python dependenc
 ```powershell
 pip install -r requirements.txt
 python main.py
+```
+
+After adding images to the local database, search them with:
+
+```powershell
+python -c "from app.pipeline import search_images; print(search_images('a red flower', k=5))"
 ```
 
 Qdrant runs in local persistent mode and creates its database in `data/`. No Docker,

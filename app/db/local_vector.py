@@ -48,3 +48,32 @@ def insert_embedding(
             )
         ],
     )
+
+
+def search_embeddings(
+    embedding: list[float],
+    limit: int = 5,
+    path: str | Path = DB_PATH,
+) -> list[dict[str, object]]:
+    """Return the stored images whose embeddings best match the query vector."""
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+
+    db = QdrantClient(path=str(path))
+    if not db.collection_exists(TABLE_NAME):
+        return []
+
+    response = db.query_points(
+        collection_name=TABLE_NAME,
+        query=embedding,
+        limit=limit,
+        with_payload=True,
+    )
+    return [
+        {
+            "url": point.payload.get("url"),
+            "label": point.payload.get("label"),
+            "score": point.score,
+        }
+        for point in response.points
+    ]
