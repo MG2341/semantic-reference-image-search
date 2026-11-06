@@ -10,7 +10,9 @@ def test_insert_embedding_stores_json_vector(tmp_path, monkeypatch):
     monkeypatch.setattr(sqlite, "DB_PATH", database_path)
 
     sqlite.init_db()
-    sqlite.insert_embedding("https://example.com/image.jpg", "example", [1.0, 2.5])
+    assert sqlite.insert_embedding(
+        "https://example.com/image.jpg", "example", [1.0, 2.5]
+    )
 
     with closing(sqlite3.connect(database_path)) as connection:
         row = connection.execute(
@@ -35,3 +37,20 @@ def test_search_embeddings_returns_highest_similarity_first(tmp_path, monkeypatc
     results = sqlite.search_embeddings([1.0, 0.0], top_k=1)
 
     assert results == [("https://example.com/close.jpg", "close", 1.0)]
+
+
+def test_insert_embedding_skips_duplicate_url(tmp_path, monkeypatch):
+    database_path = tmp_path / "reference_images.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+
+    assert sqlite.insert_embedding("https://example.com/image.jpg", "first", [1.0])
+    assert not sqlite.insert_embedding("https://example.com/image.jpg", "second", [0.0])
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        rows = connection.execute(
+            "SELECT url, label, embedding FROM image_embeddings"
+        ).fetchall()
+
+    assert rows == [("https://example.com/image.jpg", "first", "[1.0]")]

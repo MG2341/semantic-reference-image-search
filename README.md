@@ -54,6 +54,7 @@ The scraper:
 - limits the number of images
 - waits between image requests
 - skips individual download or decoding failures
+- does not insert the same image URL more than once
 
 This is intentionally a single-page ingestion command. Respect each site's
 terms, copyright, and rate limits before scraping. It does not execute
@@ -75,3 +76,7 @@ This keeps the project focused on the core idea before we add:
 - a vector database
 - API endpoints
 - production error handling
+
+The SQLite layer enforces unique image URLs. Re-running a scrape skips URLs
+already stored in the database; it does not yet detect the same image served
+under different URLs.

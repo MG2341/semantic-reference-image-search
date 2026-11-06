@@ -29,21 +29,37 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            DELETE FROM image_embeddings
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM image_embeddings
+                GROUP BY url
+            )
+            """
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_image_embeddings_url "
+            "ON image_embeddings (url)"
+        )
         conn.commit()
 
 
 def insert_embedding(
     url: str, label: str | None, embedding: Sequence[float]
-) -> None:
+) -> bool:
     with closing(get_connection()) as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO image_embeddings (url, label, embedding)
             VALUES (?, ?, ?)
+            ON CONFLICT(url) DO NOTHING
             """,
             (url, label, json.dumps(list(embedding))),
         )
         conn.commit()
+        return cursor.rowcount == 1
 
 
 def search_embeddings(

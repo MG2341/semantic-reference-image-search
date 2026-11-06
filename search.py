@@ -2,21 +2,14 @@ from __future__ import annotations
 
 import argparse
 
-import torch
-from transformers import CLIPModel, CLIPProcessor
-
-from app.config import MODEL_NAME
-from app.db.sqlite import init_db, search_embeddings
+from app.bootstrap import initialize_database, load_clip_model
+from app.db.sqlite import search_embeddings
 from app.services.embedding_service import get_text_embedding
 
 
 def search_images(query: str, top_k: int) -> list[tuple[str, str | None, float]]:
-    init_db()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Loading CLIP model on {device}; the first run downloads it...", flush=True)
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(device)
-    model.eval()
-    processor = CLIPProcessor.from_pretrained(MODEL_NAME)
+    initialize_database()
+    model, processor = load_clip_model()
 
     query_embedding = get_text_embedding(model, processor, query)
     return search_embeddings(query_embedding[0].tolist(), top_k)

@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-from app.config import MODEL_NAME
-from app.db.sqlite import init_db
+from app.bootstrap import initialize_database, load_clip_model
 
 
 def run_demo(image_url: str) -> None:
-    print("Opening SQLite database...", flush=True)
-    try:
-        init_db()
-    except Exception as error:
-        raise RuntimeError(
-            "Could not initialize the SQLite database. Check SQLITE_DB_PATH "
-            "and its parent directory."
-        ) from error
-
-    import torch
-    from transformers import CLIPModel, CLIPProcessor
+    initialize_database()
     from app.services.embedding_service import (
         cosine_similarity,
         download_image,
@@ -24,10 +13,7 @@ def run_demo(image_url: str) -> None:
     )
     from app.services.storage_service import save_image_embedding
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Loading CLIP model on {device}; the first run downloads it...", flush=True)
-    model = CLIPModel.from_pretrained(MODEL_NAME).to(device)
-    processor = CLIPProcessor.from_pretrained(MODEL_NAME)
+    model, processor = load_clip_model()
 
     print("Downloading sample image...", flush=True)
     image = download_image(image_url)
