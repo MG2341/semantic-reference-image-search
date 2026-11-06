@@ -27,24 +27,44 @@ python main.py
 The first run also downloads the CLIP model and can take several minutes.
 Subsequent runs use the local model cache.
 
-## Scrape a page
+## Search scraped images
 
-The separate scraper entry point discovers images from one HTML page, embeds
-them, and saves their URLs and embeddings to SQLite:
+After scraping images, search them with a text description:
 
 ```powershell
-python scrape.py https://example.com --max-images 20
+python search.py "a red flower in a garden" --top-k 5
 ```
 
-This is intentionally limited to one page and a maximum image count. Before
-scraping a real site, check its terms, `robots.txt`, copyright requirements,
-and rate limits. The scraper does not execute JavaScript, crawl links, or
-download original image files yet.
+The command embeds the description with the same CLIP model, compares it with
+the stored image embeddings, and prints the best matching image URLs.
+
+## Scrape a page
+
+The separate scraper entry point extracts image URLs from one page and stores
+their CLIP embeddings in SQLite:
+
+```powershell
+python scrape.py https://example.com/gallery --max-images 20
+```
+
+The scraper:
+
+- checks the page's `robots.txt`
+- extracts regular, lazy-loaded, and `srcset` image URLs
+- limits the number of images
+- waits between image requests
+- skips individual download or decoding failures
+
+This is intentionally a single-page ingestion command. Respect each site's
+terms, copyright, and rate limits before scraping. It does not execute
+JavaScript, crawl links, download original image files, or provide resumable
+job tracking.
 
 ## Main file
 
 - `main.py` – the executable entry point
 - `scrape.py` – the image ingestion entry point
+- `search.py` – the image search entry point
 
 ## Why this is the starting point
 

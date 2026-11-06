@@ -57,5 +57,5 @@ def run_demo(image_url: str) -> None:
 
     print("Image query pipeline demo")
     print("Best match:")
-    for query, score in similarities[:3]:
+    for query, score in similarities[:]:
         print(f"- {query}: {score:.4f}")

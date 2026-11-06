@@ -38,15 +38,10 @@ def normalize(vector: torch.Tensor) -> torch.Tensor:
     return vector / vector.norm(p=2, dim=-1, keepdim=True)
 
 
-def _move_inputs_to_device(inputs, device: torch.device) -> None:
-    for key, value in inputs.items():
-        if isinstance(value, torch.Tensor):
-            inputs[key] = value.to(device)
-
-
 def get_image_embedding(model: CLIPModel, processor: CLIPProcessor, image: Image.Image) -> torch.Tensor:
     inputs = processor(images=image, return_tensors="pt")
-    _move_inputs_to_device(inputs, model.device)
+    device = next(model.parameters()).device
+    inputs = {name: value.to(device) for name, value in inputs.items()}
     with torch.no_grad():
         embedding = model.get_image_features(**inputs)
     embedding = unwrap_embedding(embedding)
@@ -55,7 +50,8 @@ def get_image_embedding(model: CLIPModel, processor: CLIPProcessor, image: Image
 
 def get_text_embedding(model: CLIPModel, processor: CLIPProcessor, text: str) -> torch.Tensor:
     inputs = processor(text=[text], return_tensors="pt", padding=True)
-    _move_inputs_to_device(inputs, model.device)
+    device = next(model.parameters()).device
+    inputs = {name: value.to(device) for name, value in inputs.items()}
     with torch.no_grad():
         embedding = model.get_text_features(**inputs)
     embedding = unwrap_embedding(embedding)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 from contextlib import closing
@@ -43,3 +44,40 @@ def insert_embedding(
             (url, label, json.dumps(list(embedding))),
         )
         conn.commit()
+
+
+def search_embeddings(
+    query_embedding: Sequence[float], top_k: int
+) -> list[tuple[str, str | None, float]]:
+    if top_k < 1:
+        raise ValueError("top_k must be at least 1")
+
+    query = list(query_embedding)
+    query_norm = math.sqrt(sum(value * value for value in query))
+    if query_norm == 0:
+        raise ValueError("query_embedding must not be a zero vector")
+
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            "SELECT url, label, embedding FROM image_embeddings"
+        ).fetchall()
+
+    results: list[tuple[str, str | None, float]] = []
+    for url, label, serialized_embedding in rows:
+        embedding = json.loads(serialized_embedding)
+        if len(embedding) != len(query):
+            raise ValueError(
+                f"Embedding dimension mismatch for {url}: "
+                f"expected {len(query)}, got {len(embedding)}"
+            )
+        embedding_norm = math.sqrt(sum(value * value for value in embedding))
+        if embedding_norm == 0:
+            continue
+        score = sum(
+            query_value * image_value
+            for query_value, image_value in zip(query, embedding)
+        ) / (query_norm * embedding_norm)
+        results.append((url, label, score))
+
+    results.sort(key=lambda result: result[2], reverse=True)
+    return results[:top_k]

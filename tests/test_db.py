@@ -22,3 +22,16 @@ def test_insert_embedding_stores_json_vector(tmp_path, monkeypatch):
         "example",
         json.dumps([1.0, 2.5]),
     )
+
+
+def test_search_embeddings_returns_highest_similarity_first(tmp_path, monkeypatch):
+    database_path = tmp_path / "reference_images.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    sqlite.insert_embedding("https://example.com/close.jpg", "close", [1.0, 0.0])
+    sqlite.insert_embedding("https://example.com/far.jpg", "far", [0.0, 1.0])
+
+    results = sqlite.search_embeddings([1.0, 0.0], top_k=1)
+
+    assert results == [("https://example.com/close.jpg", "close", 1.0)]
