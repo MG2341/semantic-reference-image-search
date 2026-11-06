@@ -61,6 +61,21 @@ terms, copyright, and rate limits before scraping. It does not execute
 JavaScript, crawl links, download original image files, or provide resumable
 job tracking.
 
+Scraping code is organized under `app/scraping/`: `generic.py` contains shared
+HTML and robots handling, `wetcanvas.py` contains the WetCanvas adapter, and
+`models.py` defines the common `ScrapedImage` result.
+
+For the WetCanvas reference-photo archive, use the site-specific mode:
+
+```powershell
+python scrape.py "https://www.wetcanvas.com/reflib-archive/?cat=15" `
+    --wetcanvas --max-pages 10 --max-images 200
+```
+
+This follows the category links under `cat=15`, walks their paginated photo
+lists, opens each photo page to find its medium image, and embeds the images.
+Use small limits first and respect the site's terms and rate limits.
+
 ## Main file
 
 - `main.py` – the executable entry point

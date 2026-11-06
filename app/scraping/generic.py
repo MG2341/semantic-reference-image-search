@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -30,15 +29,19 @@ def ensure_allowed_by_robots(page_url: str) -> None:
         raise RuntimeError(f"robots.txt disallows scraping {page_url}")
 
 
-def discover_image_urls(page_url: str) -> list[str]:
+def fetch_soup(page_url: str) -> BeautifulSoup:
     ensure_allowed_by_robots(page_url)
-    headers = {
-        "User-Agent": USER_AGENT
-    }
-    response = requests.get(page_url, headers=headers, timeout=30)
+    response = requests.get(
+        page_url,
+        headers={"User-Agent": USER_AGENT},
+        timeout=30,
+    )
     response.raise_for_status()
+    return BeautifulSoup(response.text, "html.parser")
 
-    soup = BeautifulSoup(response.text, "html.parser")
+
+def discover_image_urls(page_url: str) -> list[str]:
+    soup = fetch_soup(page_url)
     image_urls: list[str] = []
     seen: set[str] = set()
 
@@ -46,12 +49,16 @@ def discover_image_urls(page_url: str) -> list[str]:
         candidates = [image.get("src"), image.get("data-src")]
         srcset = image.get("srcset")
         if srcset:
-            candidates.extend(item.strip().split(" ", 1)[0] for item in srcset.split(","))
+            candidates.extend(
+                item.strip().split(" ", 1)[0] for item in srcset.split(",")
+            )
 
         for candidate in candidates:
             if not candidate:
                 continue
             image_url = urljoin(page_url, candidate)
+            if urlparse(image_url).scheme not in {"http", "https"}:
+                continue
             if image_url not in seen:
                 seen.add(image_url)
                 image_urls.append(image_url)

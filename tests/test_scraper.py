@@ -1,4 +1,4 @@
-from app.services import scraper_service
+from app.scraping import generic
 
 
 def test_discover_image_urls(monkeypatch):
@@ -13,9 +13,9 @@ def test_discover_image_urls(monkeypatch):
         def raise_for_status(self):
             pass
 
-    monkeypatch.setattr(scraper_service.requests, "get", lambda *args, **kwargs: Response())
+    monkeypatch.setattr(generic.requests, "get", lambda *args, **kwargs: Response())
 
-    assert scraper_service.discover_image_urls("https://example.com/gallery/") == [
+    assert generic.discover_image_urls("https://example.com/gallery/") == [
         "https://example.com/first.jpg",
         "https://example.com/gallery/second.jpg",
         "https://example.com/gallery/third-small.jpg",
