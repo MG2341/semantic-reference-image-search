@@ -37,6 +37,17 @@ python search.py "a red flower in a garden" --top-k 5
 
 The command embeds the description with the same CLIP model, compares it with
 the stored image embeddings, and prints the best matching image URLs.
+Search can be restricted to one type or combined types:
+
+```powershell
+python search.py "a horse" --source-type photo
+python search.py "a dramatic scene" `
+    --source-type movie_screencap --source-type master_artwork
+```
+
+Types are assigned during ingestion from the source or scraper configuration;
+they are not inferred from CLIP. Supported types are `photo`,
+`movie_screencap`, `master_artwork`, `other`, and `unknown`.
 
 ## Scrape a page
 
@@ -45,6 +56,13 @@ their CLIP embeddings in SQLite:
 
 ```powershell
 python scrape.py https://example.com/gallery --max-images 20
+```
+
+Use `--source-type` to label the provenance of generic scraped images:
+
+```powershell
+python scrape.py https://example.com/gallery `
+    --source-type master_artwork --max-images 20
 ```
 
 The scraper:
@@ -74,7 +92,8 @@ python scrape.py "https://www.wetcanvas.com/reflib-archive/?cat=15" `
 
 This follows the category links under `cat=15`, walks their paginated photo
 lists, opens each photo page to find its medium image, and embeds the images.
-Use small limits first and respect the site's terms and rate limits.
+WetCanvas images are labeled `photo`. Use small limits first and respect the
+site's terms and rate limits.
 
 ## Main file
 
@@ -94,4 +113,5 @@ This keeps the project focused on the core idea before we add:
 
 The SQLite layer enforces unique image URLs. Re-running a scrape skips URLs
 already stored in the database; it does not yet detect the same image served
-under different URLs.
+under different URLs. Existing rows from before source labels were added are
+labeled `unknown` rather than being classified retroactively.

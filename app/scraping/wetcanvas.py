@@ -54,6 +54,7 @@ def get_image_from_photo_page(photo_url: str) -> ScrapedImage:
                 image_url=image_url,
                 source_page_url=photo_url,
                 title=image.get("alt"),
+                source_type="photo",
             )
     raise ValueError(f"No medium image found on {photo_url}")
 

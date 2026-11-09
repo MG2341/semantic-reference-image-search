@@ -7,12 +7,14 @@ from app.db.sqlite import search_embeddings
 from app.services.embedding_service import get_text_embedding
 
 
-def search_images(query: str, top_k: int) -> list[tuple[str, str | None, float]]:
+def search_images(
+    query: str, top_k: int, source_types: list[str] | None = None
+) -> list[tuple[str, str | None, str, float]]:
     initialize_database()
     model, processor = load_clip_model()
 
     query_embedding = get_text_embedding(model, processor, query)
-    return search_embeddings(query_embedding[0].tolist(), top_k)
+    return search_embeddings(query_embedding[0].tolist(), top_k, source_types)
 
 
 def main() -> None:
@@ -21,6 +23,13 @@ def main() -> None:
     )
     parser.add_argument("query", help="Description of the images to find")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--source-type",
+        dest="source_types",
+        action="append",
+        choices=["photo", "movie_screencap", "master_artwork", "other", "unknown"],
+        help="Limit results; repeat for an OR combination",
+    )
     args = parser.parse_args()
 
     if not args.query.strip():
@@ -28,14 +37,14 @@ def main() -> None:
     if args.top_k < 1:
         parser.error("--top-k must be at least 1")
 
-    results = search_images(args.query, args.top_k)
+    results = search_images(args.query, args.top_k, args.source_types)
     if not results:
         print("No images are stored yet. Run scrape.py first.")
         return
 
     print(f"Best matches for: {args.query}")
-    for url, label, score in results:
-        print(f"- {url} (score: {score:.4f})")
+    for url, label, source_type, score in results:
+        print(f"- {url} [{source_type}] (score: {score:.4f})")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ def run_demo(image_url: str) -> None:
         url=image_url,
         label="demo flower image",
         embedding=image_embedding[0].tolist(),
+        source_type="other",
     )
 
     candidate_queries = [

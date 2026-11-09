@@ -47,5 +47,6 @@ def test_wetcanvas_image_discovery_follows_category_and_photo_pages(monkeypatch)
             ),
             source_page_url="https://www.wetcanvas.com/reflib-archive/?photo=123",
             title="Horse",
+            source_type="photo",
         )
     ]

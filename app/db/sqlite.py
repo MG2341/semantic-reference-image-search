@@ -10,6 +10,7 @@ from typing import Sequence
 
 
 DB_PATH = Path(os.getenv("SQLITE_DB_PATH", "data/reference_images.db"))
+DEFAULT_SOURCE_TYPE = "unknown"
 
 
 def get_connection() -> sqlite3.Connection:
@@ -25,10 +26,20 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT NOT NULL,
                 label TEXT,
+                source_type TEXT NOT NULL DEFAULT 'unknown',
                 embedding TEXT NOT NULL
             )
             """
         )
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(image_embeddings)").fetchall()
+        }
+        if "source_type" not in columns:
+            conn.execute(
+                "ALTER TABLE image_embeddings ADD COLUMN "
+                "source_type TEXT NOT NULL DEFAULT 'unknown'"
+            )
         conn.execute(
             """
             DELETE FROM image_embeddings
@@ -47,24 +58,29 @@ def init_db() -> None:
 
 
 def insert_embedding(
-    url: str, label: str | None, embedding: Sequence[float]
+    url: str,
+    label: str | None,
+    embedding: Sequence[float],
+    source_type: str = DEFAULT_SOURCE_TYPE,
 ) -> bool:
     with closing(get_connection()) as conn:
         cursor = conn.execute(
             """
-            INSERT INTO image_embeddings (url, label, embedding)
-            VALUES (?, ?, ?)
+            INSERT INTO image_embeddings (url, label, source_type, embedding)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(url) DO NOTHING
             """,
-            (url, label, json.dumps(list(embedding))),
+            (url, label, source_type, json.dumps(list(embedding))),
         )
         conn.commit()
         return cursor.rowcount == 1
 
 
 def search_embeddings(
-    query_embedding: Sequence[float], top_k: int
-) -> list[tuple[str, str | None, float]]:
+    query_embedding: Sequence[float],
+    top_k: int,
+    source_types: Sequence[str] | None = None,
+) -> list[tuple[str, str | None, str, float]]:
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
 
@@ -75,11 +91,14 @@ def search_embeddings(
 
     with closing(get_connection()) as conn:
         rows = conn.execute(
-            "SELECT url, label, embedding FROM image_embeddings"
+            "SELECT url, label, source_type, embedding FROM image_embeddings"
         ).fetchall()
 
-    results: list[tuple[str, str | None, float]] = []
-    for url, label, serialized_embedding in rows:
+    allowed_types = set(source_types) if source_types else None
+    results: list[tuple[str, str | None, str, float]] = []
+    for url, label, source_type, serialized_embedding in rows:
+        if allowed_types is not None and source_type not in allowed_types:
+            continue
         embedding = json.loads(serialized_embedding)
         if len(embedding) != len(query):
             raise ValueError(
@@ -93,7 +112,7 @@ def search_embeddings(
             query_value * image_value
             for query_value, image_value in zip(query, embedding)
         ) / (query_norm * embedding_norm)
-        results.append((url, label, score))
+        results.append((url, label, source_type, score))
 
     results.sort(key=lambda result: result[2], reverse=True)
     return results[:top_k]
