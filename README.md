@@ -49,6 +49,22 @@ Requests are retried with exponential backoff. Provider-specific pagination
 or authentication can still be added as a separate adapter when an API does
 not expose next URLs.
 
+## Met Museum ingestion
+
+The Met uses two API calls: a collection search returns object IDs, and an
+object-detail request provides the artwork image URL. Use the dedicated Met
+entry point:
+
+```powershell
+python met_scrape.py "impressionism" --max-images 20
+python met_scrape.py "landscape" --max-images 50 --delay 0.2
+```
+
+Met results are labeled `master_artwork` by default. Artworks without a
+`primaryImage` are skipped. The Met API does not require an API key; the
+adapter uses the documented paginated `v1.1/search` endpoint and stays well
+below the documented request-rate limit.
+
 ## Search
 
 ```powershell
