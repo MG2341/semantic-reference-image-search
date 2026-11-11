@@ -5,31 +5,31 @@ import time
 
 from app.bootstrap import initialize_database, load_clip_model
 from app.scraping.models import ScrapedImage, SourceType
-from app.scraping import generic, wetcanvas
+from app.scraping.api import discover_images
 from app.services.embedding_service import download_image, get_image_embedding
 from app.services.storage_service import save_image_embedding
 
 
-def scrape_page(
-    page_url: str,
+def scrape_api(
+    api_url: str,
     max_images: int,
     delay_seconds: float,
     source_type: SourceType,
+    image_field: str,
+    title_field: str | None,
+    records_path: str | None,
 ) -> int:
     initialize_database()
 
     images = [
-        ScrapedImage(image_url=url, source_page_url=page_url)
-        for url in generic.discover_image_urls(page_url)[:max_images]
-    ]
-    images = [
-        ScrapedImage(
-            image_url=image.image_url,
-            source_page_url=image.source_page_url,
-            title=image.title,
-            source_type=source_type,
-        )
-        for image in images
+        image
+        for image in discover_images(
+            api_url,
+            image_field,
+            title_field,
+            records_path,
+            source_type,
+        )[:max_images]
     ]
     return process_images(images, delay_seconds)
 
@@ -60,37 +60,33 @@ def process_images(images: list[ScrapedImage], delay_seconds: float) -> int:
     return saved_count
 
 
-def scrape_wetcanvas(
-    index_url: str, max_pages: int, max_images: int, delay_seconds: float
-) -> int:
-    initialize_database()
-    return process_images(
-        wetcanvas.discover_images(index_url, max_pages, max_images),
-        delay_seconds,
-    )
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Scrape image embeddings from a web page")
-    parser.add_argument("url", help="Web page URL to scrape")
-    parser.add_argument(
-        "--wetcanvas",
-        action="store_true",
-        help="Use the WetCanvas category and photo-page scraper",
+    parser = argparse.ArgumentParser(
+        description="Fetch image records from a JSON API and create embeddings."
     )
+    parser.add_argument("url", help="JSON API endpoint")
     parser.add_argument(
         "--source-type",
         choices=["photo", "movie_screencap", "master_artwork", "other", "unknown"],
         default="photo",
-        help="Provenance label for scraped images (default: photo)",
+        help="Provenance label for images (default: photo)",
     )
-    parser.add_argument("--max-pages", type=int, default=10)
     parser.add_argument(
         "--max-images",
         type=int,
         default=20,
         help="Maximum number of images to process (default: 20)",
     )
+    parser.add_argument(
+        "--records-path",
+        help="Dot-separated path to the list of records, e.g. data.results",
+    )
+    parser.add_argument(
+        "--image-field",
+        default="image_url",
+        help="Dot-separated image URL field in each record (default: image_url)",
+    )
+    parser.add_argument("--title-field", help="Optional title field in each record")
     parser.add_argument(
         "--delay",
         type=float,
@@ -103,20 +99,16 @@ def main() -> None:
         parser.error("--max-images must be at least 1")
     if args.delay < 0:
         parser.error("--delay cannot be negative")
-    if args.max_pages < 1:
-        parser.error("--max-pages must be at least 1")
-    if args.wetcanvas and args.source_type != "photo":
-        parser.error("WetCanvas images must use the photo source type")
-
-    print(f"Discovering images on {args.url}...", flush=True)
-    if args.wetcanvas:
-        saved_count = scrape_wetcanvas(
-            args.url, args.max_pages, args.max_images, args.delay
-        )
-    else:
-        saved_count = scrape_page(
-            args.url, args.max_images, args.delay, args.source_type
-        )
+    print(f"Fetching image records from {args.url}...", flush=True)
+    saved_count = scrape_api(
+        args.url,
+        args.max_images,
+        args.delay,
+        args.source_type,
+        args.image_field,
+        args.title_field,
+        args.records_path,
+    )
     print(f"Saved {saved_count} image embeddings.", flush=True)
 
 

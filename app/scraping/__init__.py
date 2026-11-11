@@ -1,1 +1,1 @@
-"""Website-specific and generic scraping adapters."""
+"""Adapters for documented image APIs."""

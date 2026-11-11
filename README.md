@@ -1,117 +1,72 @@
 # Reference Image Searcher
 
-This is the minimal version of the project: a simple semantic search pipeline using CLIP.
+This project collects image links from JSON APIs, creates CLIP embeddings, and
+supports semantic search over the stored images.
 
-## What this repo does
+## Setup
 
-- downloads one sample image
-- creates an image embedding with CLIP
-- creates text embeddings for search queries
-- compares them using cosine similarity
-- prints the closest matching text description
-
-## Run it
-
-The demo uses SQLite, which is included with Python. No database server or
-Docker is required. The database is created at
-`data/reference_images.db` on first run. You can override that location with
-the `SQLITE_DB_PATH` environment variable.
-
-Then run:
+SQLite is included with Python; no database server or Docker is required.
+Install dependencies into the virtual environment:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python main.py
+pip install -r requirements.txt
 ```
 
-The first run also downloads the CLIP model and can take several minutes.
-Subsequent runs use the local model cache.
+The database is created at `data/reference_images.db`. Override it with
+`SQLITE_DB_PATH`.
 
-## Search scraped images
+## API ingestion
 
-After scraping images, search them with a text description:
+The ingestion command expects an API returning either a JSON list of records or
+an object containing a list at `--records-path`. Map the API's fields explicitly:
+
+```powershell
+python scrape.py "https://api.example.com/images" `
+    --records-path data.results `
+    --image-field image.url `
+    --title-field title `
+    --source-type photo `
+    --max-images 100
+```
+
+Supported source types are `photo`, `movie_screencap`, `master_artwork`,
+`other`, and `unknown`. If the API requires a bearer token, set
+`API_BEARER_TOKEN` in the environment rather than putting the secret in the
+command line.
+
+The API adapter does not assume a particular provider, pagination scheme, or
+response shape beyond the explicit field mapping. Provider-specific pagination
+or authentication can be added as a separate adapter when needed.
+
+## Search
 
 ```powershell
 python search.py "a red flower in a garden" --top-k 5
-```
-
-The command embeds the description with the same CLIP model, compares it with
-the stored image embeddings, and prints the best matching image URLs.
-Search can be restricted to one type or combined types:
-
-```powershell
-python search.py "a horse" --source-type photo
 python search.py "a dramatic scene" `
     --source-type movie_screencap --source-type master_artwork
 ```
 
-Types are assigned during ingestion from the source or scraper configuration;
-they are not inferred from CLIP. Supported types are `photo`,
-`movie_screencap`, `master_artwork`, `other`, and `unknown`.
+Source types are assigned during ingestion and are never inferred from CLIP.
+Repeated source-type flags are combined with OR logic.
 
-## Scrape a page
+## Demo
 
-The separate scraper entry point extracts image URLs from one page and stores
-their CLIP embeddings in SQLite:
+The original CLIP demonstration remains available:
 
 ```powershell
-python scrape.py https://example.com/gallery --max-images 20
+python main.py
 ```
 
-Use `--source-type` to label the provenance of generic scraped images:
+## Architecture
 
-```powershell
-python scrape.py https://example.com/gallery `
-    --source-type master_artwork --max-images 20
+```text
+API adapter -> ScrapedImage -> image download -> CLIP embedding -> SQLite
+                                                     |
+                                                     v
+                                               filtered search
 ```
 
-The scraper:
-
-- checks the page's `robots.txt`
-- extracts regular, lazy-loaded, and `srcset` image URLs
-- limits the number of images
-- waits between image requests
-- skips individual download or decoding failures
-- does not insert the same image URL more than once
-
-This is intentionally a single-page ingestion command. Respect each site's
-terms, copyright, and rate limits before scraping. It does not execute
-JavaScript, crawl links, download original image files, or provide resumable
-job tracking.
-
-Scraping code is organized under `app/scraping/`: `generic.py` contains shared
-HTML and robots handling, `wetcanvas.py` contains the WetCanvas adapter, and
-`models.py` defines the common `ScrapedImage` result.
-
-For the WetCanvas reference-photo archive, use the site-specific mode:
-
-```powershell
-python scrape.py "https://www.wetcanvas.com/reflib-archive/?cat=15" `
-    --wetcanvas --max-pages 10 --max-images 200
-```
-
-This follows the category links under `cat=15`, walks their paginated photo
-lists, opens each photo page to find its medium image, and embeds the images.
-WetCanvas images are labeled `photo`. Use small limits first and respect the
-site's terms and rate limits.
-
-## Main file
-
-- `main.py` – the executable entry point
-- `scrape.py` – the image ingestion entry point
-- `search.py` – the image search entry point
-
-## Why this is the starting point
-
-This keeps the project focused on the core idea before we add:
-
-- batch ingestion
-- scalable persistence
-- a vector database
-- API endpoints
-- production error handling
-
-The SQLite layer enforces unique image URLs. Re-running a scrape skips URLs
-already stored in the database; it does not yet detect the same image served
-under different URLs. Existing rows from before source labels were added are
-labeled `unknown` rather than being classified retroactively.
+The project intentionally does not include generic HTML scraping or the
+WetCanvas-specific scraper. Sources should be added only through APIs with
+clear, documented response and usage policies.
