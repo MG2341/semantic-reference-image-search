@@ -8,6 +8,9 @@ from contextlib import closing
 from pathlib import Path
 from typing import Sequence
 
+from app.config import MODEL_NAME, MODEL_REVISION
+from app.domain.models import ImageRecord, SearchResult
+
 
 DB_PATH = Path(os.getenv("SQLITE_DB_PATH", "data/reference_images.db"))
 DEFAULT_SOURCE_TYPE = "unknown"
@@ -15,46 +18,106 @@ DEFAULT_SOURCE_TYPE = "unknown"
 
 def get_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def init_db() -> None:
     with closing(get_connection()) as conn:
-        conn.execute(
+        conn.executescript(
             """
-            CREATE TABLE IF NOT EXISTS image_embeddings (
+            CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                url TEXT NOT NULL,
-                label TEXT,
+                image_url TEXT NOT NULL UNIQUE,
+                source_page_url TEXT NOT NULL,
+                title TEXT,
                 source_type TEXT NOT NULL DEFAULT 'unknown',
-                embedding TEXT NOT NULL
-            )
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_checked_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+                model_name TEXT NOT NULL,
+                model_revision TEXT NOT NULL,
+                dimensions INTEGER NOT NULL,
+                vector TEXT NOT NULL,
+                UNIQUE(image_id, model_name, model_revision)
+            );
+
             """
         )
-        columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(image_embeddings)").fetchall()
-        }
-        if "source_type" not in columns:
-            conn.execute(
-                "ALTER TABLE image_embeddings ADD COLUMN "
-                "source_type TEXT NOT NULL DEFAULT 'unknown'"
-            )
+        _migrate_legacy_embeddings(conn)
         conn.execute(
             """
-            DELETE FROM image_embeddings
-            WHERE id NOT IN (
-                SELECT MIN(id)
-                FROM image_embeddings
-                GROUP BY url
-            )
+            CREATE VIEW IF NOT EXISTS image_embeddings AS
+            SELECT images.image_url AS url,
+                   images.title AS label,
+                   images.source_type,
+                   embeddings.vector AS embedding
+            FROM images
+            JOIN embeddings ON embeddings.image_id = images.id
             """
-        )
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_image_embeddings_url "
-            "ON image_embeddings (url)"
         )
         conn.commit()
+
+
+def _migrate_legacy_embeddings(conn: sqlite3.Connection) -> None:
+    legacy = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'image_embeddings'"
+    ).fetchone()
+    if legacy is None:
+        return
+
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(image_embeddings)").fetchall()
+    }
+    source_type_expression = (
+        "source_type" if "source_type" in columns else "'unknown'"
+    )
+    rows = conn.execute(
+        f"SELECT url, label, {source_type_expression} AS source_type, embedding "
+        "FROM image_embeddings"
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            """
+            INSERT INTO images (image_url, source_page_url, title, source_type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(image_url) DO NOTHING
+            """,
+            (
+                row["url"],
+                row["url"],
+                row["label"],
+                row["source_type"],
+            ),
+        )
+        image = conn.execute(
+            "SELECT id FROM images WHERE image_url = ?", (row["url"],)
+        ).fetchone()
+        vector = json.loads(row["embedding"])
+        conn.execute(
+            """
+            INSERT INTO embeddings (
+                image_id, model_name, model_revision, dimensions, vector
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(image_id, model_name, model_revision) DO NOTHING
+            """,
+            (
+                image["id"],
+                MODEL_NAME,
+                MODEL_REVISION,
+                len(vector),
+                row["embedding"],
+            ),
+        )
+    conn.execute("DROP TABLE image_embeddings")
 
 
 def insert_embedding(
@@ -62,25 +125,64 @@ def insert_embedding(
     label: str | None,
     embedding: Sequence[float],
     source_type: str = DEFAULT_SOURCE_TYPE,
+    source_page_url: str | None = None,
+    model_name: str = MODEL_NAME,
+    model_revision: str = MODEL_REVISION,
 ) -> bool:
+    vector = list(embedding)
     with closing(get_connection()) as conn:
+        conn.execute(
+            """
+            INSERT INTO images (image_url, source_page_url, title, source_type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(image_url) DO UPDATE SET
+                title = COALESCE(images.title, excluded.title),
+                source_page_url = COALESCE(images.source_page_url, excluded.source_page_url)
+            """,
+            (url, source_page_url or url, label, source_type),
+        )
+        image = conn.execute(
+            "SELECT id FROM images WHERE image_url = ?", (url,)
+        ).fetchone()
         cursor = conn.execute(
             """
-            INSERT INTO image_embeddings (url, label, source_type, embedding)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(url) DO NOTHING
+            INSERT INTO embeddings (
+                image_id, model_name, model_revision, dimensions, vector
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(image_id, model_name, model_revision) DO NOTHING
             """,
-            (url, label, source_type, json.dumps(list(embedding))),
+            (
+                image["id"],
+                model_name,
+                model_revision,
+                len(vector),
+                json.dumps(vector),
+            ),
         )
         conn.commit()
         return cursor.rowcount == 1
+
+
+def existing_image_urls(urls: Sequence[str]) -> set[str]:
+    if not urls:
+        return set()
+    placeholders = ",".join("?" for _ in urls)
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            f"SELECT image_url FROM images WHERE image_url IN ({placeholders})",
+            tuple(urls),
+        ).fetchall()
+    return {row["image_url"] for row in rows}
 
 
 def search_embeddings(
     query_embedding: Sequence[float],
     top_k: int,
     source_types: Sequence[str] | None = None,
-) -> list[tuple[str, str | None, str, float]]:
+    model_name: str = MODEL_NAME,
+    model_revision: str = MODEL_REVISION,
+) -> list[SearchResult]:
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
 
@@ -91,20 +193,28 @@ def search_embeddings(
 
     with closing(get_connection()) as conn:
         rows = conn.execute(
-            "SELECT url, label, source_type, embedding FROM image_embeddings"
+            """
+            SELECT images.image_url, images.title, images.source_type,
+                   embeddings.dimensions, embeddings.vector
+            FROM images
+            JOIN embeddings ON embeddings.image_id = images.id
+            WHERE embeddings.model_name = ?
+              AND embeddings.model_revision = ?
+            """,
+            (model_name, model_revision),
         ).fetchall()
 
     allowed_types = set(source_types) if source_types else None
-    results: list[tuple[str, str | None, str, float]] = []
-    for url, label, source_type, serialized_embedding in rows:
-        if allowed_types is not None and source_type not in allowed_types:
+    results: list[SearchResult] = []
+    for row in rows:
+        if allowed_types is not None and row["source_type"] not in allowed_types:
             continue
-        embedding = json.loads(serialized_embedding)
-        if len(embedding) != len(query):
+        if row["dimensions"] != len(query):
             raise ValueError(
-                f"Embedding dimension mismatch for {url}: "
-                f"expected {len(query)}, got {len(embedding)}"
+                f"Embedding dimension mismatch for {row['image_url']}: "
+                f"expected {len(query)}, got {row['dimensions']}"
             )
+        embedding = json.loads(row["vector"])
         embedding_norm = math.sqrt(sum(value * value for value in embedding))
         if embedding_norm == 0:
             continue
@@ -112,7 +222,14 @@ def search_embeddings(
             query_value * image_value
             for query_value, image_value in zip(query, embedding)
         ) / (query_norm * embedding_norm)
-        results.append((url, label, source_type, score))
+        results.append(
+            SearchResult(
+                image_url=row["image_url"],
+                title=row["title"],
+                source_type=row["source_type"],
+                score=score,
+            )
+        )
 
-    results.sort(key=lambda result: result[2], reverse=True)
+    results.sort(key=lambda result: result.score, reverse=True)
     return results[:top_k]

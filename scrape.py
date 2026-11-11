@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import time
-
-from app.bootstrap import initialize_database, load_clip_model
+from app.bootstrap import initialize_database
 from app.scraping.models import ScrapedImage, SourceType
 from app.scraping.api import discover_images
-from app.services.embedding_service import download_image, get_image_embedding
-from app.services.storage_service import save_image_embedding
+from app.services.ingestion_service import process_images as ingest_images
 
 
 def scrape_api(
@@ -18,6 +15,8 @@ def scrape_api(
     image_field: str,
     title_field: str | None,
     records_path: str | None,
+    max_pages: int = 1,
+    next_url_field: str | None = None,
 ) -> int:
     initialize_database()
 
@@ -29,35 +28,15 @@ def scrape_api(
             title_field,
             records_path,
             source_type,
+            max_pages=max_pages,
+            next_url_field=next_url_field,
         )[:max_images]
     ]
     return process_images(images, delay_seconds)
 
 
 def process_images(images: list[ScrapedImage], delay_seconds: float) -> int:
-    model, processor = load_clip_model()
-
-    saved_count = 0
-    for index, image in enumerate(images):
-        print(f"Processing {image.image_url}", flush=True)
-        try:
-            downloaded_image = download_image(image.image_url)
-            embedding = get_image_embedding(model, processor, downloaded_image)
-            saved = save_image_embedding(
-                url=image.image_url,
-                label=image.title or f"Scraped from {image.source_page_url}",
-                embedding=embedding[0].tolist(),
-                source_type=image.source_type,
-            )
-        except (OSError, ValueError):
-            print(f"Skipping unsupported image: {image.image_url}", flush=True)
-            continue
-        if saved:
-            saved_count += 1
-        if index < len(images) - 1:
-            time.sleep(delay_seconds)
-
-    return saved_count
+    return ingest_images(images, delay_seconds)
 
 
 def main() -> None:
@@ -88,6 +67,16 @@ def main() -> None:
     )
     parser.add_argument("--title-field", help="Optional title field in each record")
     parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=1,
+        help="Maximum API pages to fetch (default: 1)",
+    )
+    parser.add_argument(
+        "--next-url-field",
+        help="Dot-separated response field containing the next page URL",
+    )
+    parser.add_argument(
         "--delay",
         type=float,
         default=1.0,
@@ -99,6 +88,8 @@ def main() -> None:
         parser.error("--max-images must be at least 1")
     if args.delay < 0:
         parser.error("--delay cannot be negative")
+    if args.max_pages < 1:
+        parser.error("--max-pages must be at least 1")
     print(f"Fetching image records from {args.url}...", flush=True)
     saved_count = scrape_api(
         args.url,

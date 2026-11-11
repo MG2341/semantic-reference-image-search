@@ -35,9 +35,19 @@ Supported source types are `photo`, `movie_screencap`, `master_artwork`,
 `API_BEARER_TOKEN` in the environment rather than putting the secret in the
 command line.
 
-The API adapter does not assume a particular provider, pagination scheme, or
-response shape beyond the explicit field mapping. Provider-specific pagination
-or authentication can be added as a separate adapter when needed.
+The API adapter supports bounded cursor-style pagination when the response
+contains a next-page URL:
+
+```powershell
+python scrape.py "https://api.example.com/images" `
+    --records-path data.results `
+    --next-url-field data.next `
+    --max-pages 10
+```
+
+Requests are retried with exponential backoff. Provider-specific pagination
+or authentication can still be added as a separate adapter when an API does
+not expose next URLs.
 
 ## Search
 
@@ -61,12 +71,22 @@ python main.py
 ## Architecture
 
 ```text
-API adapter -> ScrapedImage -> image download -> CLIP embedding -> SQLite
-                                                     |
-                                                     v
-                                               filtered search
+API adapter -> ImageRecord -> ingestion service -> CLIP embedding
+                                      |                  |
+                                      v                  v
+                              duplicate URL check   SQLite repository
+                                                         |
+                                                         v
+                                                   filtered search
 ```
+
+SQLite separates image metadata from embeddings. Embeddings are tagged with
+the model name and revision, so changing models does not silently mix
+incompatible vectors. Existing databases using the old `image_embeddings`
+table are migrated on initialization.
 
 The project intentionally does not include generic HTML scraping or the
 WetCanvas-specific scraper. Sources should be added only through APIs with
-clear, documented response and usage policies.
+clear, documented response and usage policies. SQLite is appropriate for a
+small prototype; move vector search to pgvector or a vector database when
+the dataset no longer fits comfortably in an in-process Python scan.

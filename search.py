@@ -4,12 +4,13 @@ import argparse
 
 from app.bootstrap import initialize_database, load_clip_model
 from app.db.sqlite import search_embeddings
+from app.domain.models import SearchResult
 from app.services.embedding_service import get_text_embedding
 
 
 def search_images(
     query: str, top_k: int, source_types: list[str] | None = None
-) -> list[tuple[str, str | None, str, float]]:
+) -> list[SearchResult]:
     initialize_database()
     model, processor = load_clip_model()
 
@@ -43,8 +44,11 @@ def main() -> None:
         return
 
     print(f"Best matches for: {args.query}")
-    for url, label, source_type, score in results:
-        print(f"- {url} [{source_type}] (score: {score:.4f})")
+    for result in results:
+        print(
+            f"- {result.image_url} [{result.source_type}] "
+            f"(score: {result.score:.4f})"
+        )
 
 
 if __name__ == "__main__":
