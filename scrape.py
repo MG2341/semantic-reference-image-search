@@ -99,6 +99,8 @@ def main() -> None:
         args.image_field,
         args.title_field,
         args.records_path,
+        max_pages=args.max_pages,
+        next_url_field=args.next_url_field,
     )
     print(f"Saved {saved_count} image embeddings.", flush=True)
 

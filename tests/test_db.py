@@ -80,3 +80,84 @@ def test_insert_embedding_skips_duplicate_url(tmp_path, monkeypatch):
     assert rows == [
         ("https://example.com/image.jpg", "first", "unknown", "[1.0]")
     ]
+
+
+def test_insert_embedding_stores_model_metadata(tmp_path, monkeypatch):
+    database_path = tmp_path / "reference_images.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    sqlite.insert_embedding(
+        "https://example.com/image.jpg",
+        "example",
+        [1.0, 2.0, 3.0],
+        model_name="test-model",
+        model_revision="test-revision",
+    )
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        row = connection.execute(
+            "SELECT model_name, model_revision, dimensions "
+            "FROM embeddings"
+        ).fetchone()
+
+    assert row == ("test-model", "test-revision", 3)
+
+
+def test_init_db_migrates_legacy_embeddings(tmp_path, monkeypatch):
+    database_path = tmp_path / "legacy.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE image_embeddings (
+                url TEXT UNIQUE,
+                label TEXT,
+                source_type TEXT,
+                embedding TEXT
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO image_embeddings VALUES (?, ?, ?, ?)",
+            (
+                "https://example.com/legacy.jpg",
+                "Legacy",
+                "photo",
+                "[1.0, 0.0]",
+            ),
+        )
+        connection.commit()
+
+    sqlite.init_db()
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        image = connection.execute(
+            "SELECT image_url, title, source_type FROM images"
+        ).fetchone()
+        embedding = connection.execute(
+            "SELECT dimensions, vector FROM embeddings"
+        ).fetchone()
+        legacy_object = connection.execute(
+            "SELECT type FROM sqlite_master WHERE name = 'image_embeddings'"
+        ).fetchone()
+
+    assert image == ("https://example.com/legacy.jpg", "Legacy", "photo")
+    assert embedding == (2, "[1.0, 0.0]")
+    assert legacy_object == ("view",)
+
+
+def test_search_embeddings_rejects_dimension_mismatch(tmp_path, monkeypatch):
+    database_path = tmp_path / "reference_images.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    sqlite.insert_embedding("https://example.com/image.jpg", "example", [1.0, 0.0])
+
+    try:
+        sqlite.search_embeddings([1.0], top_k=1)
+    except ValueError as error:
+        assert "Embedding dimension mismatch" in str(error)
+    else:
+        raise AssertionError("Expected a dimension mismatch to raise ValueError")
