@@ -30,7 +30,10 @@ def process_images(
     model, processor = load_clip_model()
     saved_count = 0
     for index, image in enumerate(pending):
-        print(f"Processing {image.image_url}", flush=True)
+        print(
+            f"Processing image {index + 1}/{len(pending)}: {image.image_url}",
+            flush=True,
+        )
         try:
             downloaded_image = download_image(image.image_url)
             embedding = get_image_embedding(model, processor, downloaded_image)
@@ -40,6 +43,7 @@ def process_images(
                 embedding=embedding[0].tolist(),
                 source_type=image.source_type,
                 source_page_url=image.source_page_url,
+                source_institution=image.source_institution,
             )
             if saved:
                 saved_count += 1

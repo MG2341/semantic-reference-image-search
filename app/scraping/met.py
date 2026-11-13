@@ -41,9 +41,63 @@ def discover_met_images(
     if not isinstance(object_ids, list):
         raise ValueError("Met API search response has invalid objectIDs")
 
+    return _discover_met_images_from_ids(
+        object_ids[:search_limit],
+        max_images=max_images,
+        source_type=source_type,
+        delay_seconds=delay_seconds,
+        retries=retries,
+    )
+
+
+def discover_all_met_images(
+    max_images: int,
+    skip_images: int = 0,
+    source_type: str = "master_artwork",
+    delay_seconds: float = 0.1,
+    retries: int = 3,
+) -> list[ScrapedImage]:
+    if max_images < 1:
+        raise ValueError("max_images must be at least 1")
+    if skip_images < 0:
+        raise ValueError("skip_images cannot be negative")
+    if delay_seconds < 0:
+        raise ValueError("delay_seconds cannot be negative")
+    if retries < 0:
+        raise ValueError("retries cannot be negative")
+
+    print("Downloading the Met object-ID list...", flush=True)
+    objects_payload = _get_json(
+        f"{MET_OBJECT_API_BASE}/objects",
+        retries=retries,
+    )
+    object_ids = objects_payload.get("objectIDs", [])
+    if not isinstance(object_ids, list):
+        raise ValueError("Met API objects response has invalid objectIDs")
+    print(f"Found {len(object_ids)} object IDs; checking object details...", flush=True)
+
+    return _discover_met_images_from_ids(
+        object_ids,
+        max_images=max_images,
+        skip_images=skip_images,
+        source_type=source_type,
+        delay_seconds=delay_seconds,
+        retries=retries,
+    )
+
+
+def _discover_met_images_from_ids(
+    object_ids: list[Any],
+    max_images: int,
+    source_type: str,
+    delay_seconds: float,
+    retries: int,
+    skip_images: int = 0,
+) -> list[ScrapedImage]:
     images: list[ScrapedImage] = []
+    skipped_images = 0
     seen_urls: set[str] = set()
-    object_ids_to_check = object_ids[:search_limit]
+    object_ids_to_check = object_ids
     for index, object_id in enumerate(object_ids_to_check):
         if not isinstance(object_id, int):
             continue
@@ -56,6 +110,9 @@ def discover_met_images(
             image_url = record.get("primaryImage")
             if isinstance(image_url, str) and image_url and image_url not in seen_urls:
                 seen_urls.add(image_url)
+                if skipped_images < skip_images:
+                    skipped_images += 1
+                    continue
                 title = record.get("title")
                 artist = record.get("artistDisplayName")
                 label = title if isinstance(title, str) else None
@@ -69,6 +126,12 @@ def discover_met_images(
                         source_type=source_type,
                     )
                 )
+        if (index + 1) % 100 == 0:
+            print(
+                f"Checked {index + 1}/{len(object_ids_to_check)} objects; "
+                f"found {skipped_images + len(images)} with images",
+                flush=True,
+            )
         if len(images) >= max_images:
             break
         if index < len(object_ids_to_check) - 1:

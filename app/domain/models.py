@@ -13,6 +13,8 @@ SourceType = Literal[
     "unknown",
 ]
 
+DEFAULT_SOURCE_INSTITUTION = "The Metropolitan Museum of Art"
+
 
 @dataclass(frozen=True)
 class ImageRecord:
@@ -20,6 +22,7 @@ class ImageRecord:
     source_page_url: str
     title: str | None = None
     source_type: SourceType = "unknown"
+    source_institution: str = DEFAULT_SOURCE_INSTITUTION
 
 
 class SearchResult(NamedTuple):

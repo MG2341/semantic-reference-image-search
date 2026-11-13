@@ -16,14 +16,49 @@ def test_insert_embedding_stores_json_vector(tmp_path, monkeypatch):
 
     with closing(sqlite3.connect(database_path)) as connection:
         row = connection.execute(
-            "SELECT url, label, embedding FROM image_embeddings"
+            "SELECT url, label, source_institution, embedding FROM image_embeddings"
         ).fetchone()
 
     assert row == (
         "https://example.com/image.jpg",
         "example",
+        "The Metropolitan Museum of Art",
         json.dumps([1.0, 2.5]),
     )
+
+
+def test_init_db_adds_source_institution_to_existing_images(tmp_path, monkeypatch):
+    database_path = tmp_path / "existing.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY,
+                image_url TEXT NOT NULL UNIQUE,
+                source_page_url TEXT NOT NULL,
+                title TEXT,
+                source_type TEXT NOT NULL DEFAULT 'unknown',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_checked_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO images (image_url, source_page_url) VALUES (?, ?)",
+            ("https://example.com/existing.jpg", "https://example.com"),
+        )
+        connection.commit()
+
+    sqlite.init_db()
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        row = connection.execute(
+            "SELECT source_institution FROM images"
+        ).fetchone()
+
+    assert row == ("The Metropolitan Museum of Art",)
 
 
 def test_search_embeddings_returns_highest_similarity_first(tmp_path, monkeypatch):

@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Sequence
 
 from app.config import MODEL_NAME, MODEL_REVISION
-from app.domain.models import ImageRecord, SearchResult
+from app.domain.models import (
+    DEFAULT_SOURCE_INSTITUTION,
+    ImageRecord,
+    SearchResult,
+)
 
 
 DB_PATH = Path(os.getenv("SQLITE_DB_PATH", "data/reference_images.db"))
@@ -33,6 +37,7 @@ def init_db() -> None:
                 source_page_url TEXT NOT NULL,
                 title TEXT,
                 source_type TEXT NOT NULL DEFAULT 'unknown',
+                source_institution TEXT NOT NULL DEFAULT 'The Metropolitan Museum of Art',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 last_checked_at TEXT
             );
@@ -49,19 +54,33 @@ def init_db() -> None:
 
             """
         )
+        _ensure_image_columns(conn)
         _migrate_legacy_embeddings(conn)
+        conn.execute("DROP VIEW IF EXISTS image_embeddings")
         conn.execute(
             """
             CREATE VIEW IF NOT EXISTS image_embeddings AS
             SELECT images.image_url AS url,
                    images.title AS label,
                    images.source_type,
+                   images.source_institution,
                    embeddings.vector AS embedding
             FROM images
             JOIN embeddings ON embeddings.image_id = images.id
             """
         )
         conn.commit()
+
+
+def _ensure_image_columns(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(images)").fetchall()
+    }
+    if "source_institution" not in columns:
+        conn.execute(
+            "ALTER TABLE images ADD COLUMN source_institution TEXT NOT NULL "
+            "DEFAULT 'The Metropolitan Museum of Art'"
+        )
 
 
 def _migrate_legacy_embeddings(conn: sqlite3.Connection) -> None:
@@ -126,6 +145,7 @@ def insert_embedding(
     embedding: Sequence[float],
     source_type: str = DEFAULT_SOURCE_TYPE,
     source_page_url: str | None = None,
+    source_institution: str = DEFAULT_SOURCE_INSTITUTION,
     model_name: str = MODEL_NAME,
     model_revision: str = MODEL_REVISION,
 ) -> bool:
@@ -133,13 +153,24 @@ def insert_embedding(
     with closing(get_connection()) as conn:
         conn.execute(
             """
-            INSERT INTO images (image_url, source_page_url, title, source_type)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO images (
+                image_url, source_page_url, title, source_type, source_institution
+            )
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(image_url) DO UPDATE SET
                 title = COALESCE(images.title, excluded.title),
-                source_page_url = COALESCE(images.source_page_url, excluded.source_page_url)
+                source_page_url = COALESCE(images.source_page_url, excluded.source_page_url),
+                source_institution = COALESCE(
+                    images.source_institution, excluded.source_institution
+                )
             """,
-            (url, source_page_url or url, label, source_type),
+            (
+                url,
+                source_page_url or url,
+                label,
+                source_type,
+                source_institution,
+            ),
         )
         image = conn.execute(
             "SELECT id FROM images WHERE image_url = ?", (url,)

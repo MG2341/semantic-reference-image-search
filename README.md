@@ -65,6 +65,19 @@ Met results are labeled `master_artwork` by default. Artworks without a
 adapter uses the documented paginated `v1.1/search` endpoint and stays well
 below the documented request-rate limit.
 
+To walk the complete Met object listing in object-ID order rather than relying
+on a semantic/text query, use:
+
+```powershell
+python met_scrape.py --all --max-images 1000 --skip-images 0 --delay 0.2
+```
+
+The object listing includes works without images, so those are skipped. The
+database deduplicates image URLs, which means rerunning the command is safe;
+if a request fails, rerun it to retry the affected portion. To fetch the next
+batch of 1000 ordered images, use `--skip-images 1000 --max-images 1000`.
+The offset counts objects with a primary image, not objects without images.
+
 ## Search
 
 ```powershell
@@ -100,6 +113,10 @@ SQLite separates image metadata from embeddings. Embeddings are tagged with
 the model name and revision, so changing models does not silently mix
 incompatible vectors. Existing databases using the old `image_embeddings`
 table are migrated on initialization.
+Image metadata includes `source_institution` (currently defaulting to `The
+Metropolitan Museum of Art`) separately from `source_type`. Future metadata can
+be added with a schema migration and backfilled by requesting each row's
+`source_page_url`; embeddings do not need to be regenerated.
 
 The project intentionally does not include generic HTML scraping or the
 WetCanvas-specific scraper. Sources should be added only through APIs with
