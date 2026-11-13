@@ -65,18 +65,22 @@ Met results are labeled `master_artwork` by default. Artworks without a
 adapter uses the documented paginated `v1.1/search` endpoint and stays well
 below the documented request-rate limit.
 
-To walk the complete Met object listing in object-ID order rather than relying
-on a semantic/text query, use:
+To walk the complete Met object listing in a persisted random order rather than
+relying on a semantic/text query, use:
 
 ```powershell
-python met_scrape.py --all --max-images 1000 --skip-images 0 --delay 0.2
+python met_scrape.py --all --batch-size 1000 --delay 0.2
 ```
 
 The object listing includes works without images, so those are skipped. The
-database deduplicates image URLs, which means rerunning the command is safe;
-if a request fails, rerun it to retry the affected portion. To fetch the next
-batch of 1000 ordered images, use `--skip-images 1000 --max-images 1000`.
-The offset counts objects with a primary image, not objects without images.
+database stores both the next random-order index and its random seed in
+`scrape_progress`, so the next run automatically continues with the next
+random batch. The database also deduplicates image URLs. If a run is
+interrupted before completion, rerunning it is safe; already stored images are
+skipped.
+In `--all` mode, an object is accepted only when its API `objectName` field is
+exactly `Painting` (case-insensitive); object IDs themselves do not identify
+the object type.
 
 ## Search
 

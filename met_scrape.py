@@ -3,6 +3,11 @@ from __future__ import annotations
 import argparse
 
 from app.bootstrap import initialize_database
+from app.db.sqlite import (
+    get_or_create_scrape_seed,
+    get_scrape_progress,
+    set_scrape_progress,
+)
 from app.scraping.met import discover_all_met_images, discover_met_images
 from app.services.ingestion_service import process_images
 
@@ -23,10 +28,10 @@ def main() -> None:
     )
     parser.add_argument("--max-images", type=int, default=20)
     parser.add_argument(
-        "--skip-images",
+        "--batch-size",
         type=int,
-        default=0,
-        help="Skip this many images in ordered --all mode (default: 0)",
+        default=1000,
+        help="Number of Met object IDs to inspect per --all run (default: 1000)",
     )
     parser.add_argument(
         "--source-type",
@@ -43,8 +48,8 @@ def main() -> None:
 
     if args.max_images < 1:
         parser.error("--max-images must be at least 1")
-    if args.skip_images < 0:
-        parser.error("--skip-images cannot be negative")
+    if args.batch_size < 1:
+        parser.error("--batch-size must be at least 1")
     if args.delay < 0:
         parser.error("--delay cannot be negative")
     if args.all == (args.query is not None):
@@ -52,10 +57,20 @@ def main() -> None:
 
     initialize_database()
     if args.all:
-        print("Walking the Met collection in object-ID order", flush=True)
+        progress_source = "met-paintings-random"
+        start_index = get_scrape_progress(progress_source)
+        random_seed = get_or_create_scrape_seed(progress_source)
+        print("Walking the Met collection in random order", flush=True)
+        print(
+            f"Starting at object index {start_index}; "
+            f"batch size {args.batch_size}",
+            flush=True,
+        )
         images = discover_all_met_images(
-            max_images=args.max_images,
-            skip_images=args.skip_images,
+            max_images=args.batch_size,
+            start_index=start_index,
+            object_batch_size=args.batch_size,
+            random_seed=random_seed,
             source_type=args.source_type,
             delay_seconds=args.delay,
         )
@@ -68,6 +83,8 @@ def main() -> None:
             delay_seconds=args.delay,
         )
     saved_count = process_images(images, args.delay)
+    if args.all:
+        set_scrape_progress(progress_source, start_index + args.batch_size)
     print(f"Saved {saved_count} image embeddings.", flush=True)
 
 

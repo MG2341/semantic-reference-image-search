@@ -196,3 +196,26 @@ def test_search_embeddings_rejects_dimension_mismatch(tmp_path, monkeypatch):
         assert "Embedding dimension mismatch" in str(error)
     else:
         raise AssertionError("Expected a dimension mismatch to raise ValueError")
+
+
+def test_scrape_progress_defaults_and_updates(tmp_path, monkeypatch):
+    database_path = tmp_path / "progress.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+
+    assert sqlite.get_scrape_progress("met-all") == 0
+    sqlite.set_scrape_progress("met-all", 1000)
+    assert sqlite.get_scrape_progress("met-all") == 1000
+
+
+def test_scrape_progress_persists_random_seed(tmp_path, monkeypatch):
+    database_path = tmp_path / "random-progress.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+
+    first_seed = sqlite.get_or_create_scrape_seed("met-all-random")
+    second_seed = sqlite.get_or_create_scrape_seed("met-all-random")
+
+    assert first_seed == second_seed

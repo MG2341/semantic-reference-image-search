@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import secrets
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -52,9 +53,16 @@ def init_db() -> None:
                 UNIQUE(image_id, model_name, model_revision)
             );
 
+            CREATE TABLE IF NOT EXISTS scrape_progress (
+                source TEXT PRIMARY KEY,
+                next_index INTEGER NOT NULL DEFAULT 0,
+                random_seed INTEGER
+            );
+
             """
         )
         _ensure_image_columns(conn)
+        _ensure_progress_columns(conn)
         _migrate_legacy_embeddings(conn)
         conn.execute("DROP VIEW IF EXISTS image_embeddings")
         conn.execute(
@@ -70,6 +78,61 @@ def init_db() -> None:
             """
         )
         conn.commit()
+
+
+def get_scrape_progress(source: str) -> int:
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            "SELECT next_index FROM scrape_progress WHERE source = ?",
+            (source,),
+        ).fetchone()
+    return int(row["next_index"]) if row else 0
+
+
+def get_or_create_scrape_seed(source: str) -> int:
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            "SELECT random_seed FROM scrape_progress WHERE source = ?",
+            (source,),
+        ).fetchone()
+        if row and row["random_seed"] is not None:
+            return int(row["random_seed"])
+
+        seed = secrets.randbits(63)
+        conn.execute(
+            """
+            INSERT INTO scrape_progress (source, next_index, random_seed)
+            VALUES (?, 0, ?)
+            ON CONFLICT(source) DO UPDATE SET random_seed = excluded.random_seed
+            """,
+            (source, seed),
+        )
+        conn.commit()
+        return seed
+
+
+def set_scrape_progress(source: str, next_index: int) -> None:
+    if next_index < 0:
+        raise ValueError("next_index cannot be negative")
+    with closing(get_connection()) as conn:
+        conn.execute(
+            """
+            INSERT INTO scrape_progress (source, next_index)
+            VALUES (?, ?)
+            ON CONFLICT(source) DO UPDATE SET next_index = excluded.next_index
+            """,
+            (source, next_index),
+        )
+        conn.commit()
+
+
+def _ensure_progress_columns(conn: sqlite3.Connection) -> None:
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(scrape_progress)").fetchall()
+    }
+    if "random_seed" not in columns:
+        conn.execute("ALTER TABLE scrape_progress ADD COLUMN random_seed INTEGER")
 
 
 def _ensure_image_columns(conn: sqlite3.Connection) -> None:
