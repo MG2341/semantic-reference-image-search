@@ -44,6 +44,10 @@ def process_images(
                 source_type=image.source_type,
                 source_page_url=image.source_page_url,
                 source_institution=image.source_institution,
+                artist=image.artist,
+                date=image.date,
+                thumbnail_url=image.thumbnail_url,
+                credit_line=image.credit_line,
             )
             if saved:
                 saved_count += 1

@@ -143,14 +143,24 @@ def _discover_met_images_from_ids(
                 seen_urls.add(image_url)
                 title = record.get("title")
                 artist = record.get("artistDisplayName")
-                label = title if isinstance(title, str) else None
-                if isinstance(artist, str) and artist:
-                    label = f"{label} - {artist}" if label else artist
+                object_date = record.get("objectDate")
+                thumbnail_url = record.get("primaryImageSmall")
+                credit_line = record.get("creditLine")
                 images.append(
                     ScrapedImage(
                         image_url=image_url,
                         source_page_url=object_url,
-                        title=label,
+                        title=title if isinstance(title, str) else None,
+                        artist=artist if isinstance(artist, str) else None,
+                        date=object_date if isinstance(object_date, str) else None,
+                        thumbnail_url=(
+                            thumbnail_url
+                            if isinstance(thumbnail_url, str) and thumbnail_url
+                            else image_url
+                        ),
+                        credit_line=(
+                            credit_line if isinstance(credit_line, str) else None
+                        ),
                         source_type=source_type,
                     )
                 )

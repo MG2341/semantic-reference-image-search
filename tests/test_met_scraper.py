@@ -18,9 +18,12 @@ def test_discover_met_images_searches_ids_then_fetches_objects(monkeypatch):
         "objects/123": _Response(
             {
                 "primaryImage": "https://images.example.com/one.jpg",
+                "primaryImageSmall": "https://images.example.com/one-small.jpg",
                 "objectName": "Painting",
                 "title": "One",
                 "artistDisplayName": "Artist One",
+                "objectDate": "1900",
+                "creditLine": "Gift of Example",
             }
         ),
         "objects/456": _Response(
@@ -42,7 +45,11 @@ def test_discover_met_images_searches_ids_then_fetches_objects(monkeypatch):
 
     images = met.discover_met_images("flowers", max_images=2)
 
-    assert images[0].title == "One - Artist One"
+    assert images[0].title == "One"
+    assert images[0].artist == "Artist One"
+    assert images[0].date == "1900"
+    assert images[0].thumbnail_url == "https://images.example.com/one-small.jpg"
+    assert images[0].credit_line == "Gift of Example"
     assert images[0].source_type == "master_artwork"
     assert images[0].source_page_url.endswith("/v1/objects/123")
     assert images[1].title == "Two"

@@ -23,6 +23,10 @@ class ImageRecord:
     title: str | None = None
     source_type: SourceType = "unknown"
     source_institution: str = DEFAULT_SOURCE_INSTITUTION
+    artist: str | None = None
+    date: str | None = None
+    thumbnail_url: str | None = None
+    credit_line: str | None = None
 
 
 class SearchResult(NamedTuple):

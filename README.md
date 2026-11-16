@@ -93,6 +93,25 @@ python search.py "a dramatic scene" `
 Source types are assigned during ingestion and are never inferred from CLIP.
 Repeated source-type flags are combined with OR logic.
 
+## Web API
+
+Start the FastAPI application with Uvicorn:
+
+```powershell
+uvicorn web:app --reload
+```
+
+The model and the stored embedding snapshot are loaded once during application
+startup. Search requests only encode the query and rank the in-memory vectors:
+
+```text
+GET http://127.0.0.1:8000/search?q=a+red+flower&k=24
+```
+
+Each result includes the stored Met metadata and its cosine-similarity score.
+Restart the application after ingesting new images so the in-memory vector
+snapshot includes them.
+
 ## Demo
 
 The original CLIP demonstration remains available:

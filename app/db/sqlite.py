@@ -12,7 +12,6 @@ from typing import Sequence
 from app.config import MODEL_NAME, MODEL_REVISION
 from app.domain.models import (
     DEFAULT_SOURCE_INSTITUTION,
-    ImageRecord,
     SearchResult,
 )
 
@@ -37,6 +36,10 @@ def init_db() -> None:
                 image_url TEXT NOT NULL UNIQUE,
                 source_page_url TEXT NOT NULL,
                 title TEXT,
+                artist TEXT,
+                date TEXT,
+                thumbnail_url TEXT,
+                credit_line TEXT,
                 source_type TEXT NOT NULL DEFAULT 'unknown',
                 source_institution TEXT NOT NULL DEFAULT 'The Metropolitan Museum of Art',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -144,6 +147,9 @@ def _ensure_image_columns(conn: sqlite3.Connection) -> None:
             "ALTER TABLE images ADD COLUMN source_institution TEXT NOT NULL "
             "DEFAULT 'The Metropolitan Museum of Art'"
         )
+    for column in ("artist", "date", "thumbnail_url", "credit_line"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE images ADD COLUMN {column} TEXT")
 
 
 def _migrate_legacy_embeddings(conn: sqlite3.Connection) -> None:
@@ -211,18 +217,27 @@ def insert_embedding(
     source_institution: str = DEFAULT_SOURCE_INSTITUTION,
     model_name: str = MODEL_NAME,
     model_revision: str = MODEL_REVISION,
+    artist: str | None = None,
+    date: str | None = None,
+    thumbnail_url: str | None = None,
+    credit_line: str | None = None,
 ) -> bool:
     vector = list(embedding)
     with closing(get_connection()) as conn:
         conn.execute(
             """
             INSERT INTO images (
-                image_url, source_page_url, title, source_type, source_institution
+                image_url, source_page_url, title, artist, date, thumbnail_url,
+                credit_line, source_type, source_institution
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(image_url) DO UPDATE SET
                 title = COALESCE(images.title, excluded.title),
                 source_page_url = COALESCE(images.source_page_url, excluded.source_page_url),
+                artist = COALESCE(images.artist, excluded.artist),
+                date = COALESCE(images.date, excluded.date),
+                thumbnail_url = COALESCE(images.thumbnail_url, excluded.thumbnail_url),
+                credit_line = COALESCE(images.credit_line, excluded.credit_line),
                 source_institution = COALESCE(
                     images.source_institution, excluded.source_institution
                 )
@@ -231,6 +246,10 @@ def insert_embedding(
                 url,
                 source_page_url or url,
                 label,
+                artist,
+                date,
+                thumbnail_url or url,
+                credit_line,
                 source_type,
                 source_institution,
             ),
