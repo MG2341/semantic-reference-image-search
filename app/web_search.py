@@ -79,7 +79,7 @@ def load_search_documents() -> list[SearchDocument]:
                    images.department, images.classification, images.culture,
                    images.period, images.dynasty, images.reign, images.country,
                    images.accession_number, images.is_public_domain,
-                   embeddings.dimensions, embeddings.vector
+                   embeddings.dimensions AS embedding_dimensions, embeddings.vector
             FROM images
             JOIN embeddings ON embeddings.image_id = images.id
             WHERE embeddings.model_name = ?
@@ -91,8 +91,14 @@ def load_search_documents() -> list[SearchDocument]:
     documents: list[SearchDocument] = []
     for row in rows:
         vector = tuple(float(value) for value in json.loads(row["vector"]))
-        if row["dimensions"] != len(vector):
-            raise ValueError(f"Stored dimension mismatch for image {row['id']}")
+        if row["embedding_dimensions"] != len(vector):
+            print(
+                f"Skipping image {row['id']}: stored dimension "
+                f"{row['embedding_dimensions']} does not match vector length "
+                f"{len(vector)}",
+                flush=True,
+            )
+            continue
         if embedding_norm(vector) == 0:
             continue
         normalized_vector = normalize_embedding(vector)

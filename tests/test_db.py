@@ -61,6 +61,31 @@ def test_init_db_adds_source_institution_to_existing_images(tmp_path, monkeypatc
     assert row == ("The Metropolitan Museum of Art",)
 
 
+def test_init_db_repairs_embedding_dimension_metadata(tmp_path, monkeypatch):
+    database_path = tmp_path / "dimensions.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    sqlite.insert_embedding("https://example.com/image.jpg", "image", [1.0, 0.0])
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        connection.execute(
+            "UPDATE embeddings SET dimensions = 1 "
+            "WHERE image_id = (SELECT id FROM images "
+            "WHERE image_url = 'https://example.com/image.jpg')"
+        )
+        connection.commit()
+
+    sqlite.init_db()
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        dimensions = connection.execute(
+            "SELECT dimensions FROM embeddings"
+        ).fetchone()[0]
+
+    assert dimensions == 2
+
+
 def test_search_embeddings_returns_highest_similarity_first(tmp_path, monkeypatch):
     database_path = tmp_path / "reference_images.db"
     monkeypatch.setattr(sqlite, "DB_PATH", database_path)

@@ -85,6 +85,7 @@ def init_db() -> None:
         _ensure_image_columns(conn)
         _ensure_progress_columns(conn)
         _migrate_met_source_urls(conn)
+        _repair_embedding_dimensions(conn)
         _migrate_legacy_embeddings(conn)
         conn.execute("DROP VIEW IF EXISTS image_embeddings")
         conn.execute(
@@ -202,6 +203,27 @@ def _migrate_met_source_urls(conn: sqlite3.Connection) -> None:
             'https://collectionapi.metmuseum.org/public/collection/v1/objects/%'
         """
     )
+
+
+def _repair_embedding_dimensions(conn: sqlite3.Connection) -> int:
+    repaired = 0
+    rows = conn.execute(
+        "SELECT id, dimensions, vector FROM embeddings"
+    ).fetchall()
+    for row in rows:
+        try:
+            actual_dimensions = len(json.loads(row["vector"]))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+        if row["dimensions"] != actual_dimensions:
+            conn.execute(
+                "UPDATE embeddings SET dimensions = ? WHERE id = ?",
+                (actual_dimensions, row["id"]),
+            )
+            repaired += 1
+    if repaired:
+        conn.commit()
+    return repaired
 
 
 def _migrate_legacy_embeddings(conn: sqlite3.Connection) -> None:
