@@ -68,7 +68,7 @@ def backfill_metadata(
             metadata = extract_met_metadata(record, object_id)
             update_image_metadata(
                 row["id"],
-                **metadata,
+                **{key: value for key, value in metadata.items() if key != "image_url"},
             )
             updated += 1
         except (requests.RequestException, ValueError) as error:

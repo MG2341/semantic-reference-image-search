@@ -23,6 +23,7 @@ class SearchDocument:
     met_page_url: str | None
     credit_line: str | None
     vector: tuple[float, ...]
+    museum: str | None = None
     object_name: str | None = None
     medium: str | None = None
     dimensions: str | None = None
@@ -49,6 +50,7 @@ class SearchMatch:
     met_page_url: str | None
     credit_line: str | None
     score: float
+    museum: str | None = None
     object_name: str | None = None
     medium: str | None = None
     dimensions: str | None = None
@@ -71,7 +73,8 @@ def load_search_documents() -> list[SearchDocument]:
             """
             SELECT images.id, images.title, images.artist, images.date,
                    images.image_url, images.thumbnail_url, images.source_page_url,
-                   images.credit_line, images.object_name, images.medium,
+                   images.credit_line, images.source_institution, images.object_name,
+                   images.medium,
                    images.dimensions, images.height, images.width,
                    images.department, images.classification, images.culture,
                    images.period, images.dynasty, images.reign, images.country,
@@ -102,6 +105,7 @@ def load_search_documents() -> list[SearchDocument]:
                 thumbnail_url=row["thumbnail_url"] or row["image_url"],
                 met_page_url=row["source_page_url"],
                 credit_line=row["credit_line"],
+                museum=row["source_institution"],
                 object_name=row["object_name"],
                 medium=row["medium"],
                 dimensions=row["dimensions"],
@@ -150,6 +154,7 @@ def search_documents(
                 thumbnail_url=document.thumbnail_url,
                 met_page_url=document.met_page_url,
                 credit_line=document.credit_line,
+                museum=document.museum,
                 object_name=document.object_name,
                 medium=document.medium,
                 dimensions=document.dimensions,

@@ -91,7 +91,9 @@ python backfill_met_metadata.py --delay 0.2
 
 Use `--max-images 20` to process a bounded batch first. The command fetches
 each existing Met object JSON record, stores its `primaryImageSmall` and
-public `objectURL`, and leaves the stored embeddings unchanged.
+public `objectURL`, plus artwork metadata such as artist, object type, medium,
+dimensions, department, classification, culture, period, and accession number.
+It leaves the stored embeddings unchanged.
 
 ## Search
 

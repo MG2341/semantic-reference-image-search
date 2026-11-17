@@ -22,6 +22,7 @@ class SearchResponse(BaseModel):
     met_page_url: str | None
     credit_line: str | None
     object_name: str | None
+    museum: str | None
     medium: str | None
     dimensions: str | None
     height: str | None
@@ -83,6 +84,7 @@ def _to_response(match: SearchMatch) -> SearchResponse:
         thumbnail_url=match.thumbnail_url,
         met_page_url=match.met_page_url,
         credit_line=match.credit_line,
+        museum=match.museum,
         object_name=match.object_name,
         medium=match.medium,
         dimensions=match.dimensions,
