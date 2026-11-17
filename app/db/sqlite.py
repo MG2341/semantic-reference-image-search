@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import secrets
 import sqlite3
@@ -13,6 +12,11 @@ from app.config import MODEL_NAME, MODEL_REVISION
 from app.domain.models import (
     DEFAULT_SOURCE_INSTITUTION,
     SearchResult,
+)
+from app.services.search_service import (
+    cosine_similarity,
+    embedding_norm,
+    normalize_embedding,
 )
 
 
@@ -299,10 +303,7 @@ def search_embeddings(
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
 
-    query = list(query_embedding)
-    query_norm = math.sqrt(sum(value * value for value in query))
-    if query_norm == 0:
-        raise ValueError("query_embedding must not be a zero vector")
+    query = normalize_embedding(query_embedding, "query_embedding")
 
     with closing(get_connection()) as conn:
         rows = conn.execute(
@@ -328,13 +329,9 @@ def search_embeddings(
                 f"expected {len(query)}, got {row['dimensions']}"
             )
         embedding = json.loads(row["vector"])
-        embedding_norm = math.sqrt(sum(value * value for value in embedding))
-        if embedding_norm == 0:
+        if embedding_norm(embedding) == 0:
             continue
-        score = sum(
-            query_value * image_value
-            for query_value, image_value in zip(query, embedding)
-        ) / (query_norm * embedding_norm)
+        score = cosine_similarity(query, embedding)
         results.append(
             SearchResult(
                 image_url=row["image_url"],

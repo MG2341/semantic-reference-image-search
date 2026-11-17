@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
-import math
 from dataclasses import dataclass
 from typing import Sequence
 
 from app.config import MODEL_NAME, MODEL_REVISION
 from app.db.sqlite import get_connection
+from app.services.search_service import (
+    cosine_similarity,
+    embedding_norm,
+    normalize_embedding,
+)
 
 
 @dataclass(frozen=True)
@@ -53,9 +57,9 @@ def load_search_documents() -> list[SearchDocument]:
         vector = tuple(float(value) for value in json.loads(row["vector"]))
         if row["dimensions"] != len(vector):
             raise ValueError(f"Stored dimension mismatch for image {row['id']}")
-        norm = math.sqrt(sum(value * value for value in vector))
-        if norm == 0:
+        if embedding_norm(vector) == 0:
             continue
+        normalized_vector = normalize_embedding(vector)
         documents.append(
             SearchDocument(
                 id=row["id"],
@@ -65,7 +69,7 @@ def load_search_documents() -> list[SearchDocument]:
                 thumbnail_url=row["thumbnail_url"],
                 met_page_url=row["source_page_url"],
                 credit_line=row["credit_line"],
-                vector=tuple(value / norm for value in vector),
+                vector=normalized_vector,
             )
         )
     return documents
@@ -79,20 +83,13 @@ def search_documents(
     if k < 1:
         raise ValueError("k must be at least 1")
 
-    query = tuple(float(value) for value in query_embedding)
-    query_norm = math.sqrt(sum(value * value for value in query))
-    if query_norm == 0:
-        raise ValueError("query_embedding must not be a zero vector")
-    normalized_query = tuple(value / query_norm for value in query)
+    normalized_query = normalize_embedding(query_embedding, "query_embedding")
 
     matches: list[SearchMatch] = []
     for document in documents:
         if len(document.vector) != len(normalized_query):
             raise ValueError(f"Embedding dimension mismatch for image {document.id}")
-        score = sum(
-            query_value * image_value
-            for query_value, image_value in zip(normalized_query, document.vector)
-        )
+        score = cosine_similarity(normalized_query, document.vector)
         matches.append(
             SearchMatch(
                 id=document.id,
