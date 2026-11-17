@@ -48,6 +48,20 @@ def process_images(
                 date=image.date,
                 thumbnail_url=image.thumbnail_url,
                 credit_line=image.credit_line,
+                object_name=image.object_name,
+                medium=image.medium,
+                dimensions=image.dimensions,
+                height=image.height,
+                width=image.width,
+                department=image.department,
+                classification=image.classification,
+                culture=image.culture,
+                period=image.period,
+                dynasty=image.dynasty,
+                reign=image.reign,
+                country=image.country,
+                accession_number=image.accession_number,
+                is_public_domain=image.is_public_domain,
             )
             if saved:
                 saved_count += 1

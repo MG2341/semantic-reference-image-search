@@ -23,6 +23,20 @@ class SearchDocument:
     met_page_url: str | None
     credit_line: str | None
     vector: tuple[float, ...]
+    object_name: str | None = None
+    medium: str | None = None
+    dimensions: str | None = None
+    height: str | None = None
+    width: str | None = None
+    department: str | None = None
+    classification: str | None = None
+    culture: str | None = None
+    period: str | None = None
+    dynasty: str | None = None
+    reign: str | None = None
+    country: str | None = None
+    accession_number: str | None = None
+    is_public_domain: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +49,20 @@ class SearchMatch:
     met_page_url: str | None
     credit_line: str | None
     score: float
+    object_name: str | None = None
+    medium: str | None = None
+    dimensions: str | None = None
+    height: str | None = None
+    width: str | None = None
+    department: str | None = None
+    classification: str | None = None
+    culture: str | None = None
+    period: str | None = None
+    dynasty: str | None = None
+    reign: str | None = None
+    country: str | None = None
+    accession_number: str | None = None
+    is_public_domain: bool | None = None
 
 
 def load_search_documents() -> list[SearchDocument]:
@@ -42,7 +70,12 @@ def load_search_documents() -> list[SearchDocument]:
         rows = connection.execute(
             """
             SELECT images.id, images.title, images.artist, images.date,
-                   images.thumbnail_url, images.source_page_url, images.credit_line,
+                   images.image_url, images.thumbnail_url, images.source_page_url,
+                   images.credit_line, images.object_name, images.medium,
+                   images.dimensions, images.height, images.width,
+                   images.department, images.classification, images.culture,
+                   images.period, images.dynasty, images.reign, images.country,
+                   images.accession_number, images.is_public_domain,
                    embeddings.dimensions, embeddings.vector
             FROM images
             JOIN embeddings ON embeddings.image_id = images.id
@@ -66,9 +99,27 @@ def load_search_documents() -> list[SearchDocument]:
                 title=row["title"],
                 artist=row["artist"],
                 date=row["date"],
-                thumbnail_url=row["thumbnail_url"],
+                thumbnail_url=row["thumbnail_url"] or row["image_url"],
                 met_page_url=row["source_page_url"],
                 credit_line=row["credit_line"],
+                object_name=row["object_name"],
+                medium=row["medium"],
+                dimensions=row["dimensions"],
+                height=row["height"],
+                width=row["width"],
+                department=row["department"],
+                classification=row["classification"],
+                culture=row["culture"],
+                period=row["period"],
+                dynasty=row["dynasty"],
+                reign=row["reign"],
+                country=row["country"],
+                accession_number=row["accession_number"],
+                is_public_domain=(
+                    bool(row["is_public_domain"])
+                    if row["is_public_domain"] is not None
+                    else None
+                ),
                 vector=normalized_vector,
             )
         )
@@ -99,6 +150,20 @@ def search_documents(
                 thumbnail_url=document.thumbnail_url,
                 met_page_url=document.met_page_url,
                 credit_line=document.credit_line,
+                object_name=document.object_name,
+                medium=document.medium,
+                dimensions=document.dimensions,
+                height=document.height,
+                width=document.width,
+                department=document.department,
+                classification=document.classification,
+                culture=document.culture,
+                period=document.period,
+                dynasty=document.dynasty,
+                reign=document.reign,
+                country=document.country,
+                accession_number=document.accession_number,
+                is_public_domain=document.is_public_domain,
                 score=score,
             )
         )

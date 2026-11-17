@@ -19,6 +19,7 @@ def test_discover_met_images_searches_ids_then_fetches_objects(monkeypatch):
             {
                 "primaryImage": "https://images.example.com/one.jpg",
                 "primaryImageSmall": "https://images.example.com/one-small.jpg",
+                "objectURL": "https://www.metmuseum.org/art/collection/search/123",
                 "objectName": "Painting",
                 "title": "One",
                 "artistDisplayName": "Artist One",
@@ -51,7 +52,7 @@ def test_discover_met_images_searches_ids_then_fetches_objects(monkeypatch):
     assert images[0].thumbnail_url == "https://images.example.com/one-small.jpg"
     assert images[0].credit_line == "Gift of Example"
     assert images[0].source_type == "master_artwork"
-    assert images[0].source_page_url.endswith("/v1/objects/123")
+    assert images[0].source_page_url.endswith("/search/123")
     assert images[1].title == "Two"
 
 

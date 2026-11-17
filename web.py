@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.bootstrap import initialize_database, load_clip_model
@@ -19,6 +21,20 @@ class SearchResponse(BaseModel):
     thumbnail_url: str | None
     met_page_url: str | None
     credit_line: str | None
+    object_name: str | None
+    medium: str | None
+    dimensions: str | None
+    height: str | None
+    width: str | None
+    department: str | None
+    classification: str | None
+    culture: str | None
+    period: str | None
+    dynasty: str | None
+    reign: str | None
+    country: str | None
+    accession_number: str | None
+    is_public_domain: bool | None
     score: float
 
 
@@ -33,6 +49,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Semantic Reference Image Search", lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
 
 
 @app.get("/search", response_model=list[SearchResponse])
@@ -62,5 +83,19 @@ def _to_response(match: SearchMatch) -> SearchResponse:
         thumbnail_url=match.thumbnail_url,
         met_page_url=match.met_page_url,
         credit_line=match.credit_line,
+        object_name=match.object_name,
+        medium=match.medium,
+        dimensions=match.dimensions,
+        height=match.height,
+        width=match.width,
+        department=match.department,
+        classification=match.classification,
+        culture=match.culture,
+        period=match.period,
+        dynasty=match.dynasty,
+        reign=match.reign,
+        country=match.country,
+        accession_number=match.accession_number,
+        is_public_domain=match.is_public_domain,
         score=match.score,
     )

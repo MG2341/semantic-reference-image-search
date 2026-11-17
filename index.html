@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semantic Reference Image Search</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Georgia, "Times New Roman", serif;
+      background: #171513;
+      color: #f5eee4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 15% 0%, #3b2b26 0, transparent 38rem),
+        #171513;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 4rem 0 5rem;
+    }
+
+    header {
+      max-width: 700px;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      margin: 0 0 .6rem;
+      font-size: clamp(2.4rem, 7vw, 5rem);
+      font-weight: 400;
+      letter-spacing: -.04em;
+      line-height: .95;
+    }
+
+    header p {
+      color: #c9b9a7;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    form {
+      display: flex;
+      gap: .7rem;
+      margin: 2rem 0 1rem;
+    }
+
+    input {
+      min-width: 0;
+      flex: 1;
+      border: 1px solid #66564a;
+      border-radius: 999px;
+      background: #241f1b;
+      color: #fffaf3;
+      font: inherit;
+      font-size: 1rem;
+      padding: .85rem 1.2rem;
+    }
+
+    input:focus {
+      border-color: #e0b477;
+      outline: 2px solid #e0b47755;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      background: #d79b5e;
+      color: #201711;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: .85rem 1.3rem;
+    }
+
+    button:hover {
+      background: #e9b879;
+    }
+
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      align-items: center;
+      color: #a99785;
+      font-size: .9rem;
+    }
+
+    .example {
+      background: transparent;
+      border: 1px solid #66564a;
+      color: #d7c6b3;
+      font-size: .9rem;
+      font-weight: 400;
+      padding: .45rem .8rem;
+    }
+
+    .status {
+      color: #d7c6b3;
+      min-height: 1.5rem;
+      margin: 2rem 0 1rem;
+    }
+
+    .grid {
+      column-count: 4;
+      column-gap: 1rem;
+    }
+
+    .card {
+      break-inside: avoid;
+      margin: 0 0 1rem;
+      overflow: hidden;
+      border: 1px solid #3c332d;
+      border-radius: .45rem;
+      background: #241f1b;
+      box-shadow: 0 1rem 2rem #00000022;
+    }
+
+    .card a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #312821;
+    }
+
+    .card-info {
+      padding: .8rem .9rem 1rem;
+    }
+
+    .card-title {
+      margin: 0 0 .35rem;
+      font-size: 1.1rem;
+      line-height: 1.15;
+    }
+
+    .card-meta {
+      color: #bca995;
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 900px) {
+      .grid { column-count: 3; }
+    }
+
+    @media (max-width: 620px) {
+      main { padding-top: 2.5rem; }
+      form { flex-direction: column; }
+      form button { width: 100%; }
+      .grid { column-count: 2; column-gap: .7rem; }
+      .card { margin-bottom: .7rem; }
+    }
+
+    @media (max-width: 390px) {
+      .grid { column-count: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Find a visual reference.</h1>
+      <p>Search the Metropolitan Museum of Art collection by describing the image you have in mind.</p>
+      <form id="search-form">
+        <input id="query" name="query" type="search" placeholder="Describe an image..." autocomplete="off" required>
+        <button type="submit">Search</button>
+      </form>
+      <div class="examples" aria-label="Example searches">
+        <span>Try:</span>
+        <button class="example" type="button" data-query="a stormy sea at night">a stormy sea at night</button>
+        <button class="example" type="button" data-query="portrait in a blue dress">portrait in a blue dress</button>
+      </div>
+    </header>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <section id="results" class="grid" aria-label="Search results"></section>
+  </main>
+
+  <script>
+    const form = document.querySelector("#search-form");
+    const queryInput = document.querySelector("#query");
+    const status = document.querySelector("#status");
+    const results = document.querySelector("#results");
+
+    function yearFromDate(date) {
+      const match = date && date.match(/\b\d{4}\b/);
+      return match ? match[0] : "";
+    }
+
+    function showResults(items) {
+      results.replaceChildren();
+      if (items.length === 0) {
+        status.textContent = "No matching images found. Try a different description.";
+        return;
+      }
+
+      status.textContent = `${items.length} visual references`;
+      for (const item of items) {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const link = document.createElement("a");
+        link.href = item.met_page_url || "#";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
+        const image = document.createElement("img");
+        image.src = item.thumbnail_url;
+        image.alt = item.title || "Met collection artwork";
+        image.loading = "lazy";
+
+        const info = document.createElement("div");
+        info.className = "card-info";
+
+        const title = document.createElement("h2");
+        title.className = "card-title";
+        title.textContent = item.title || "Untitled";
+
+        const meta = document.createElement("div");
+        meta.className = "card-meta";
+        meta.textContent = [
+          item.artist || "Unknown artist",
+          yearFromDate(item.date),
+          item.object_name,
+          item.medium,
+          item.dimensions,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        info.append(title, meta);
+        link.append(image, info);
+        card.append(link);
+        results.append(card);
+      }
+    }
+
+    async function runSearch(query) {
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) return;
+
+      queryInput.value = trimmedQuery;
+      status.textContent = "Searching the collection...";
+      results.replaceChildren();
+
+      try {
+        const response = await fetch(`/search?q=${encodeURIComponent(trimmedQuery)}&k=24`);
+        if (!response.ok) {
+          throw new Error("Search request failed");
+        }
+        showResults(await response.json());
+      } catch (error) {
+        status.textContent = "Something went wrong while searching. Please try again.";
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      runSearch(queryInput.value);
+    });
+
+    document.querySelectorAll(".example").forEach((button) => {
+      button.addEventListener("click", () => runSearch(button.dataset.query));
+    });
+  </script>
+</body>
+</html>

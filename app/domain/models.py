@@ -27,6 +27,20 @@ class ImageRecord:
     date: str | None = None
     thumbnail_url: str | None = None
     credit_line: str | None = None
+    object_name: str | None = None
+    medium: str | None = None
+    dimensions: str | None = None
+    height: str | None = None
+    width: str | None = None
+    department: str | None = None
+    classification: str | None = None
+    culture: str | None = None
+    period: str | None = None
+    dynasty: str | None = None
+    reign: str | None = None
+    country: str | None = None
+    accession_number: str | None = None
+    is_public_domain: bool | None = None
 
 
 class SearchResult(NamedTuple):

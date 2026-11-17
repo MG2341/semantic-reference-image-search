@@ -15,6 +15,70 @@ MET_OBJECT_API_BASE = "https://collectionapi.metmuseum.org/public/collection/v1"
 USER_AGENT = "reference-image-searcher/0.1"
 
 
+def extract_met_metadata(record: Mapping[str, Any], object_id: int) -> dict[str, Any]:
+    image_url = _string_value(record, "primaryImage")
+    if image_url is None:
+        raise ValueError(f"Met object {object_id} has no primaryImage")
+
+    measurements = record.get("measurements")
+    return {
+        "image_url": image_url,
+        "source_page_url": (
+            _string_value(record, "objectURL")
+            or f"https://www.metmuseum.org/art/collection/search/{object_id}"
+        ),
+        "title": _string_value(record, "title"),
+        "artist": _string_value(record, "artistDisplayName"),
+        "date": _string_value(record, "objectDate"),
+        "thumbnail_url": _string_value(record, "primaryImageSmall") or image_url,
+        "credit_line": _string_value(record, "creditLine"),
+        "object_name": _string_value(record, "objectName"),
+        "medium": _string_value(record, "medium"),
+        "dimensions": _string_value(record, "dimensions"),
+        "height": _measurement_value(measurements, "Height"),
+        "width": _measurement_value(measurements, "Width"),
+        "department": _string_value(record, "department"),
+        "classification": _string_value(record, "classification"),
+        "culture": _string_value(record, "culture"),
+        "period": _string_value(record, "period"),
+        "dynasty": _string_value(record, "dynasty"),
+        "reign": _string_value(record, "reign"),
+        "country": _string_value(record, "country"),
+        "accession_number": _string_value(record, "accessionNumber"),
+        "is_public_domain": (
+            record["isPublicDomain"]
+            if isinstance(record.get("isPublicDomain"), bool)
+            else None
+        ),
+    }
+
+
+def _string_value(record: Mapping[str, Any], field: str) -> str | None:
+    value = record.get(field)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _measurement_value(measurements: Any, element: str) -> str | None:
+    if not isinstance(measurements, list):
+        return None
+    for measurement in measurements:
+        if not isinstance(measurement, Mapping):
+            continue
+        if measurement.get("element") == element:
+            value = measurement.get("value")
+            if isinstance(value, (int, float)):
+                return str(value)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def get_met_object(object_id: int, retries: int = 3) -> dict[str, Any]:
+    if object_id < 1:
+        raise ValueError("object_id must be at least 1")
+    return _get_json(f"{MET_OBJECT_API_BASE}/objects/{object_id}", retries=retries)
+
+
 def discover_met_images(
     query: str,
     max_images: int,
@@ -127,9 +191,8 @@ def _discover_met_images_from_ids(
             f"(Met object ID: {object_id})",
             flush=True,
         )
-        object_url = f"{MET_OBJECT_API_BASE}/objects/{object_id}"
         try:
-            record = _get_json(object_url, retries=retries)
+            record = get_met_object(object_id, retries=retries)
         except requests.RequestException as error:
             print(f"Skipping Met object {object_id}: {error}", flush=True)
         else:
@@ -138,29 +201,16 @@ def _discover_met_images_from_ids(
                 or record["objectName"].strip().casefold() != "painting"
             ):
                 continue
-            image_url = record.get("primaryImage")
-            if isinstance(image_url, str) and image_url and image_url not in seen_urls:
+            try:
+                metadata = extract_met_metadata(record, object_id)
+            except ValueError:
+                continue
+            image_url = metadata["image_url"]
+            if image_url not in seen_urls:
                 seen_urls.add(image_url)
-                title = record.get("title")
-                artist = record.get("artistDisplayName")
-                object_date = record.get("objectDate")
-                thumbnail_url = record.get("primaryImageSmall")
-                credit_line = record.get("creditLine")
                 images.append(
                     ScrapedImage(
-                        image_url=image_url,
-                        source_page_url=object_url,
-                        title=title if isinstance(title, str) else None,
-                        artist=artist if isinstance(artist, str) else None,
-                        date=object_date if isinstance(object_date, str) else None,
-                        thumbnail_url=(
-                            thumbnail_url
-                            if isinstance(thumbnail_url, str) and thumbnail_url
-                            else image_url
-                        ),
-                        credit_line=(
-                            credit_line if isinstance(credit_line, str) else None
-                        ),
+                        **metadata,
                         source_type=source_type,
                     )
                 )

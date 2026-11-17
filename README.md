@@ -82,6 +82,17 @@ In `--all` mode, an object is accepted only when its API `objectName` field is
 exactly `Painting` (case-insensitive); object IDs themselves do not identify
 the object type.
 
+To backfill Met thumbnails and metadata for records already in the database
+without recomputing embeddings, run:
+
+```powershell
+python backfill_met_metadata.py --delay 0.2
+```
+
+Use `--max-images 20` to process a bounded batch first. The command fetches
+each existing Met object JSON record, stores its `primaryImageSmall` and
+public `objectURL`, and leaves the stored embeddings unchanged.
+
 ## Search
 
 ```powershell
@@ -100,6 +111,10 @@ Start the FastAPI application with Uvicorn:
 ```powershell
 uvicorn web:app --reload
 ```
+
+Open `http://127.0.0.1:8000/` for the plain JavaScript search page. It
+provides example queries, a responsive image grid, and links to the Met
+collection pages. The page hotlinks the stored `primaryImageSmall` URLs.
 
 The model and the stored embedding snapshot are loaded once during application
 startup. Search requests only encode the query and rank the in-memory vectors:

@@ -41,9 +41,12 @@ def test_search_endpoint_loads_resources_at_startup(monkeypatch):
     monkeypatch.setattr(web, "get_text_embedding", lambda *args: _Embedding())
 
     with TestClient(web.app) as client:
+        page_response = client.get("/")
         response = client.get("/search?q=painting&k=1")
         second_response = client.get("/search?q=painting&k=1")
 
+    assert page_response.status_code == 200
+    assert "Semantic Reference Image Search" in page_response.text
     assert response.status_code == 200
     assert response.json()[0] == {
         "id": 7,

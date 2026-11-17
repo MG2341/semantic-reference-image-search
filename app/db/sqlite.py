@@ -44,6 +44,20 @@ def init_db() -> None:
                 date TEXT,
                 thumbnail_url TEXT,
                 credit_line TEXT,
+                object_name TEXT,
+                medium TEXT,
+                dimensions TEXT,
+                height TEXT,
+                width TEXT,
+                department TEXT,
+                classification TEXT,
+                culture TEXT,
+                period TEXT,
+                dynasty TEXT,
+                reign TEXT,
+                country TEXT,
+                accession_number TEXT,
+                is_public_domain INTEGER,
                 source_type TEXT NOT NULL DEFAULT 'unknown',
                 source_institution TEXT NOT NULL DEFAULT 'The Metropolitan Museum of Art',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +84,7 @@ def init_db() -> None:
         )
         _ensure_image_columns(conn)
         _ensure_progress_columns(conn)
+        _migrate_met_source_urls(conn)
         _migrate_legacy_embeddings(conn)
         conn.execute("DROP VIEW IF EXISTS image_embeddings")
         conn.execute(
@@ -151,9 +166,42 @@ def _ensure_image_columns(conn: sqlite3.Connection) -> None:
             "ALTER TABLE images ADD COLUMN source_institution TEXT NOT NULL "
             "DEFAULT 'The Metropolitan Museum of Art'"
         )
-    for column in ("artist", "date", "thumbnail_url", "credit_line"):
+    for column in (
+        "artist",
+        "date",
+        "thumbnail_url",
+        "credit_line",
+        "object_name",
+        "medium",
+        "dimensions",
+        "height",
+        "width",
+        "department",
+        "classification",
+        "culture",
+        "period",
+        "dynasty",
+        "reign",
+        "country",
+        "accession_number",
+        "is_public_domain",
+    ):
         if column not in columns:
-            conn.execute(f"ALTER TABLE images ADD COLUMN {column} TEXT")
+            column_type = "INTEGER" if column == "is_public_domain" else "TEXT"
+            conn.execute(f"ALTER TABLE images ADD COLUMN {column} {column_type}")
+
+
+def _migrate_met_source_urls(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        UPDATE images
+        SET source_page_url =
+            'https://www.metmuseum.org/art/collection/search/' ||
+            substr(source_page_url, instr(source_page_url, '/objects/') + 9)
+        WHERE source_page_url LIKE
+            'https://collectionapi.metmuseum.org/public/collection/v1/objects/%'
+        """
+    )
 
 
 def _migrate_legacy_embeddings(conn: sqlite3.Connection) -> None:
@@ -225,6 +273,20 @@ def insert_embedding(
     date: str | None = None,
     thumbnail_url: str | None = None,
     credit_line: str | None = None,
+    object_name: str | None = None,
+    medium: str | None = None,
+    dimensions: str | None = None,
+    height: str | None = None,
+    width: str | None = None,
+    department: str | None = None,
+    classification: str | None = None,
+    culture: str | None = None,
+    period: str | None = None,
+    dynasty: str | None = None,
+    reign: str | None = None,
+    country: str | None = None,
+    accession_number: str | None = None,
+    is_public_domain: bool | None = None,
 ) -> bool:
     vector = list(embedding)
     with closing(get_connection()) as conn:
@@ -232,9 +294,12 @@ def insert_embedding(
             """
             INSERT INTO images (
                 image_url, source_page_url, title, artist, date, thumbnail_url,
-                credit_line, source_type, source_institution
+                credit_line, object_name, medium, dimensions, height, width,
+                department, classification, culture, period, dynasty, reign,
+                country, accession_number, is_public_domain, source_type,
+                source_institution
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(image_url) DO UPDATE SET
                 title = COALESCE(images.title, excluded.title),
                 source_page_url = COALESCE(images.source_page_url, excluded.source_page_url),
@@ -242,6 +307,24 @@ def insert_embedding(
                 date = COALESCE(images.date, excluded.date),
                 thumbnail_url = COALESCE(images.thumbnail_url, excluded.thumbnail_url),
                 credit_line = COALESCE(images.credit_line, excluded.credit_line),
+                object_name = COALESCE(images.object_name, excluded.object_name),
+                medium = COALESCE(images.medium, excluded.medium),
+                dimensions = COALESCE(images.dimensions, excluded.dimensions),
+                height = COALESCE(images.height, excluded.height),
+                width = COALESCE(images.width, excluded.width),
+                department = COALESCE(images.department, excluded.department),
+                classification = COALESCE(images.classification, excluded.classification),
+                culture = COALESCE(images.culture, excluded.culture),
+                period = COALESCE(images.period, excluded.period),
+                dynasty = COALESCE(images.dynasty, excluded.dynasty),
+                reign = COALESCE(images.reign, excluded.reign),
+                country = COALESCE(images.country, excluded.country),
+                accession_number = COALESCE(
+                    images.accession_number, excluded.accession_number
+                ),
+                is_public_domain = COALESCE(
+                    images.is_public_domain, excluded.is_public_domain
+                ),
                 source_institution = COALESCE(
                     images.source_institution, excluded.source_institution
                 )
@@ -254,6 +337,20 @@ def insert_embedding(
                 date,
                 thumbnail_url or url,
                 credit_line,
+                object_name,
+                medium,
+                dimensions,
+                height,
+                width,
+                department,
+                classification,
+                culture,
+                period,
+                dynasty,
+                reign,
+                country,
+                accession_number,
+                is_public_domain,
                 source_type,
                 source_institution,
             ),
@@ -291,6 +388,83 @@ def existing_image_urls(urls: Sequence[str]) -> set[str]:
             tuple(urls),
         ).fetchall()
     return {row["image_url"] for row in rows}
+
+
+def update_image_metadata(
+    image_id: int,
+    *,
+    source_page_url: str,
+    title: str | None,
+    artist: str | None,
+    date: str | None,
+    thumbnail_url: str | None,
+    credit_line: str | None,
+    object_name: str | None,
+    medium: str | None,
+    dimensions: str | None,
+    height: str | None,
+    width: str | None,
+    department: str | None,
+    classification: str | None,
+    culture: str | None,
+    period: str | None,
+    dynasty: str | None,
+    reign: str | None,
+    country: str | None,
+    accession_number: str | None,
+    is_public_domain: bool | None,
+) -> None:
+    with closing(get_connection()) as conn:
+        conn.execute(
+            """
+            UPDATE images
+            SET source_page_url = ?,
+                title = ?,
+                artist = ?,
+                date = ?,
+                thumbnail_url = ?,
+                credit_line = ?,
+                object_name = ?,
+                medium = ?,
+                dimensions = ?,
+                height = ?,
+                width = ?,
+                department = ?,
+                classification = ?,
+                culture = ?,
+                period = ?,
+                dynasty = ?,
+                reign = ?,
+                country = ?,
+                accession_number = ?,
+                is_public_domain = ?
+            WHERE id = ?
+            """,
+            (
+                source_page_url,
+                title,
+                artist,
+                date,
+                thumbnail_url,
+                credit_line,
+                object_name,
+                medium,
+                dimensions,
+                height,
+                width,
+                department,
+                classification,
+                culture,
+                period,
+                dynasty,
+                reign,
+                country,
+                accession_number,
+                is_public_domain,
+                image_id,
+            ),
+        )
+        conn.commit()
 
 
 def search_embeddings(
