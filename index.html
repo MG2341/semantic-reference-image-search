@@ -346,8 +346,6 @@
         showResults(await response.json());
       } catch (error) {
         status.textContent = "Something went wrong while searching by image. Please try again.";
-      } finally {
-        clearSelectedImage();
       }
     }
 
