@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import requests
 
@@ -11,9 +11,14 @@ from app.services.embedding_service import download_image, get_image_embedding
 from app.services.storage_service import save_image_embedding
 
 
+ProgressCallback = Callable[[int, int, int], None]
+PROGRESS_INTERVAL_SECONDS = 60.0
+
+
 def process_images(
     images: Sequence[ScrapedImage],
     delay_seconds: float,
+    progress_callback: ProgressCallback | None = None,
 ) -> int:
     known_urls = existing_image_urls([image.image_url for image in images])
     pending: list[ScrapedImage] = []
@@ -29,6 +34,7 @@ def process_images(
 
     model, processor = load_clip_model()
     saved_count = 0
+    last_progress_at = time.monotonic()
     for index, image in enumerate(pending):
         print(
             f"Processing image {index + 1}/{len(pending)}: {image.image_url}",
@@ -68,6 +74,14 @@ def process_images(
         except (OSError, ValueError, requests.RequestException) as error:
             print(f"Skipping {image.image_url}: {error}", flush=True)
         finally:
+            processed_count = index + 1
+            now = time.monotonic()
+            if progress_callback and (
+                now - last_progress_at >= PROGRESS_INTERVAL_SECONDS
+                or processed_count == len(pending)
+            ):
+                progress_callback(processed_count, len(pending), saved_count)
+                last_progress_at = now
             if index < len(pending) - 1:
                 time.sleep(delay_seconds)
     return saved_count

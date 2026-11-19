@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 
 from app.bootstrap import initialize_database
 from app.scraping.cleveland import discover_cleveland_images
 from app.services.ingestion_service import process_images
+
+
+def _print_progress(processed: int, total: int, saved: int) -> None:
+    timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    print(
+        f"[{timestamp}] Covered {processed}/{total} images; "
+        f"saved {saved} embeddings.",
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -70,8 +80,17 @@ def main() -> None:
         return
 
     initialize_database()
-    saved_count = process_images(images, args.delay)
-    print(f"Saved {saved_count} image embeddings.", flush=True)
+    print("Starting image download and embedding process.", flush=True)
+    saved_count = process_images(
+        images,
+        args.delay,
+        progress_callback=_print_progress,
+    )
+    timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    print(
+        f"[{timestamp}] Completed. Saved {saved_count} image embeddings.",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

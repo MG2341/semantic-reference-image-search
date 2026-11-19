@@ -10,6 +10,7 @@ def test_process_images_skips_known_and_duplicate_urls(monkeypatch):
         ImageRecord("https://example.com/new.jpg", "https://api.example.com"),
     ]
     downloaded_urls = []
+    progress = []
 
     monkeypatch.setattr(
         ingestion_service,
@@ -35,8 +36,18 @@ def test_process_images_skips_known_and_duplicate_urls(monkeypatch):
         lambda **kwargs: True,
     )
 
-    assert ingestion_service.process_images(images, delay_seconds=0) == 1
+    assert (
+        ingestion_service.process_images(
+            images,
+            delay_seconds=0,
+            progress_callback=lambda processed, total, saved: progress.append(
+                (processed, total, saved)
+            ),
+        )
+        == 1
+    )
     assert downloaded_urls == ["https://example.com/new.jpg"]
+    assert progress == [(1, 1, 1)]
 
 
 class _Embedding:
