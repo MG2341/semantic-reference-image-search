@@ -95,6 +95,35 @@ public `objectURL`, plus artwork metadata such as artist, object type, medium,
 dimensions, department, classification, culture, period, and accession number.
 It leaves the stored embeddings unchanged.
 
+## Cleveland Museum of Art ingestion
+
+The Cleveland adapter uses the museum's Open Access API and stores its web
+image URLs, artwork metadata, source page URLs, and CLIP embeddings through the
+same ingestion pipeline as the other adapters.
+
+Verify a small sample without downloading images or changing the database:
+
+```powershell
+python cleveland_scrape.py --max-images 5 --dry-run
+python cleveland_scrape.py --query landscape --max-images 5 --dry-run
+```
+
+The dry run prints each discovered title, image URL, and museum page URL. Check
+that these records and URLs are correct before running the real small import:
+
+```powershell
+python cleveland_scrape.py --query landscape --max-images 5 --delay 1
+```
+
+To process the complete image-bearing CMA listing, use paginated requests:
+
+```powershell
+python cleveland_scrape.py --all --batch-size 1000 --delay 1
+```
+
+The API is paginated in batches of at most 1000 records. Existing image URLs
+are deduplicated by the ingestion service, so rerunning the command is safe.
+
 ## Search
 
 ```powershell
