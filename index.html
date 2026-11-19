@@ -55,6 +55,12 @@
       margin: 2rem 0 1rem;
     }
 
+    .search-actions {
+      display: flex;
+      gap: .7rem;
+      flex-wrap: wrap;
+    }
+
     input {
       min-width: 0;
       flex: 1;
@@ -180,6 +186,10 @@
         <input id="query" name="query" type="search" placeholder="Describe an image..." autocomplete="off" required>
         <button type="submit">Search</button>
       </form>
+      <div class="search-actions">
+        <button id="image-search-button" type="button">Search by image</button>
+        <input id="image-input" type="file" accept="image/*" hidden>
+      </div>
       <div class="examples" aria-label="Example searches">
         <span>Try:</span>
         <button class="example" type="button" data-query="a stormy sea at night">a stormy sea at night</button>
@@ -194,6 +204,8 @@
   <script>
     const form = document.querySelector("#search-form");
     const queryInput = document.querySelector("#query");
+    const imageSearchButton = document.querySelector("#image-search-button");
+    const imageInput = document.querySelector("#image-input");
     const status = document.querySelector("#status");
     const results = document.querySelector("#results");
 
@@ -269,9 +281,38 @@
       }
     }
 
+    async function runImageSearch(file) {
+      status.textContent = "Searching by image...";
+      results.replaceChildren();
+
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+
+      try {
+        const response = await fetch("/search/image?k=24", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error("Image search request failed");
+        }
+        showResults(await response.json());
+      } catch (error) {
+        status.textContent = "Something went wrong while searching by image. Please try again.";
+      } finally {
+        imageInput.value = "";
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       runSearch(queryInput.value);
+    });
+
+    imageSearchButton.addEventListener("click", () => imageInput.click());
+    imageInput.addEventListener("change", () => {
+      const [file] = imageInput.files;
+      if (file) runImageSearch(file);
     });
 
     document.querySelectorAll(".example").forEach((button) => {

@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+from io import BytesIO
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 
 from app.bootstrap import initialize_database, load_clip_model
-from app.services.embedding_service import get_text_embedding
+from app.services.embedding_service import get_image_embedding, get_text_embedding
 from app.services.search_pipeline import EmbeddingSearchPipeline
 from app.web_search import SearchMatch, load_search_documents, search_documents
+
+
+MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 class SearchResponse(BaseModel):
@@ -53,6 +58,12 @@ async def lifespan(app: FastAPI):
             embedding, documents, top_k
         ),
     )
+    app.state.image_search_pipeline = EmbeddingSearchPipeline(
+        encoder=lambda image: get_image_embedding(model, processor, image)[0].tolist(),
+        searcher=lambda embedding, top_k: search_documents(
+            embedding, documents, top_k
+        ),
+    )
     yield
 
 
@@ -74,6 +85,37 @@ def search(
         raise HTTPException(status_code=400, detail="q cannot be empty")
 
     matches = request.app.state.search_pipeline.search(q, k)
+    return [_to_response(match) for match in matches]
+
+
+@app.post("/search/image", response_model=list[SearchResponse])
+async def search_by_image(
+    request: Request,
+    file: UploadFile = File(...),
+    k: Annotated[int, Query(ge=1, le=100)] = 24,
+) -> list[SearchResponse]:
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=415,
+            detail="file must be an image",
+        )
+
+    contents = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_IMAGE_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="image file is too large",
+        )
+
+    try:
+        image = Image.open(BytesIO(contents)).convert("RGB")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+        raise HTTPException(
+            status_code=400,
+            detail="file is not a valid image",
+        ) from error
+
+    matches = request.app.state.image_search_pipeline.search(image, k)
     return [_to_response(match) for match in matches]
 
 

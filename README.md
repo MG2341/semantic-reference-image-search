@@ -129,6 +129,17 @@ Each result includes the stored Met metadata and its cosine-similarity score.
 Restart the application after ingesting new images so the in-memory vector
 snapshot includes them.
 
+The web API also supports searching with an uploaded image:
+
+```text
+POST http://127.0.0.1:8000/search/image?k=24
+Content-Type: multipart/form-data
+file=<image>
+```
+
+The web page provides a `Search by image` control that sends local image files
+to this endpoint. Uploads are limited to 10 MB and must be valid image files.
+
 ## Demo
 
 The original CLIP demonstration remains available:

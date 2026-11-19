@@ -1,3 +1,6 @@
+from io import BytesIO
+
+from PIL import Image
 from fastapi.testclient import TestClient
 
 import web
@@ -39,14 +42,23 @@ def test_search_endpoint_loads_resources_at_startup(monkeypatch):
     monkeypatch.setattr(web, "load_clip_model", load_model)
     monkeypatch.setattr(web, "load_search_documents", load_documents)
     monkeypatch.setattr(web, "get_text_embedding", lambda *args: _Embedding())
+    monkeypatch.setattr(web, "get_image_embedding", lambda *args: _Embedding())
+
+    image_bytes = BytesIO()
+    Image.new("RGB", (1, 1), color="white").save(image_bytes, format="PNG")
 
     with TestClient(web.app) as client:
         page_response = client.get("/")
         response = client.get("/search?q=painting&k=1")
         second_response = client.get("/search?q=painting&k=1")
+        image_response = client.post(
+            "/search/image?k=1",
+            files={"file": ("reference.png", image_bytes.getvalue(), "image/png")},
+        )
 
     assert page_response.status_code == 200
     assert "Semantic Reference Image Search" in page_response.text
+    assert "Search by image" in page_response.text
     assert response.status_code == 200
     assert response.json()[0] == {
         "id": 7,
@@ -74,4 +86,22 @@ def test_search_endpoint_loads_resources_at_startup(monkeypatch):
         "score": 1.0,
     }
     assert second_response.status_code == 200
+    assert image_response.status_code == 200
+    assert image_response.json()[0]["id"] == 7
     assert calls == {"model": 1, "documents": 1}
+
+
+def test_image_search_rejects_non_image_upload(monkeypatch):
+    monkeypatch.setattr(web, "initialize_database", lambda: None)
+    monkeypatch.setattr(web, "load_clip_model", lambda: ("model", "processor"))
+    monkeypatch.setattr(web, "load_search_documents", lambda: [])
+    monkeypatch.setattr(web, "get_text_embedding", lambda *args: _Embedding())
+    monkeypatch.setattr(web, "get_image_embedding", lambda *args: _Embedding())
+
+    with TestClient(web.app) as client:
+        response = client.post(
+            "/search/image",
+            files={"file": ("reference.txt", b"not an image", "text/plain")},
+        )
+
+    assert response.status_code == 415
