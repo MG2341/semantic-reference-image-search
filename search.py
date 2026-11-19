@@ -6,6 +6,7 @@ from app.bootstrap import initialize_database, load_clip_model
 from app.db.sqlite import search_embeddings
 from app.domain.models import SearchResult
 from app.services.embedding_service import get_text_embedding
+from app.services.search_pipeline import EmbeddingSearchPipeline
 
 
 def search_images(
@@ -14,8 +15,13 @@ def search_images(
     initialize_database()
     model, processor = load_clip_model()
 
-    query_embedding = get_text_embedding(model, processor, query)
-    return search_embeddings(query_embedding[0].tolist(), top_k, source_types)
+    pipeline = EmbeddingSearchPipeline(
+        encoder=lambda text: get_text_embedding(model, processor, text)[0].tolist(),
+        searcher=lambda embedding, limit: search_embeddings(
+            embedding, limit, source_types
+        ),
+    )
+    return pipeline.search(query, top_k)
 
 
 def main() -> None:

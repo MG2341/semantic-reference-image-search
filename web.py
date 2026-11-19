@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.bootstrap import initialize_database, load_clip_model
 from app.services.embedding_service import get_text_embedding
+from app.services.search_pipeline import EmbeddingSearchPipeline
 from app.web_search import SearchMatch, load_search_documents, search_documents
 
 
@@ -45,7 +46,13 @@ async def lifespan(app: FastAPI):
     model, processor = load_clip_model()
     app.state.model = model
     app.state.processor = processor
-    app.state.documents = load_search_documents()
+    documents = load_search_documents()
+    app.state.search_pipeline = EmbeddingSearchPipeline(
+        encoder=lambda text: get_text_embedding(model, processor, text)[0].tolist(),
+        searcher=lambda embedding, top_k: search_documents(
+            embedding, documents, top_k
+        ),
+    )
     yield
 
 
@@ -66,12 +73,7 @@ def search(
     if not q.strip():
         raise HTTPException(status_code=400, detail="q cannot be empty")
 
-    query_embedding = get_text_embedding(
-        request.app.state.model,
-        request.app.state.processor,
-        q,
-    )[0].tolist()
-    matches = search_documents(query_embedding, request.app.state.documents, k)
+    matches = request.app.state.search_pipeline.search(q, k)
     return [_to_response(match) for match in matches]
 
 
