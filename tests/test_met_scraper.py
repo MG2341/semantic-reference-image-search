@@ -52,6 +52,7 @@ def test_discover_met_images_searches_ids_then_fetches_objects(monkeypatch):
     assert images[0].thumbnail_url == "https://images.example.com/one-small.jpg"
     assert images[0].credit_line == "Gift of Example"
     assert images[0].source_type == "master_artwork"
+    assert images[0].source_institution == "The Metropolitan Museum of Art"
     assert images[0].source_page_url.endswith("/search/123")
     assert images[1].title == "Two"
 

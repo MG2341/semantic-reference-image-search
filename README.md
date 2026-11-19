@@ -153,9 +153,10 @@ SQLite separates image metadata from embeddings. Embeddings are tagged with
 the model name and revision, so changing models does not silently mix
 incompatible vectors. Existing databases using the old `image_embeddings`
 table are migrated on initialization.
-Image metadata includes `source_institution` (currently defaulting to `The
-Metropolitan Museum of Art`) separately from `source_type`. Future metadata can
-be added with a schema migration and backfilled by requesting each row's
+Image metadata includes `source_institution` separately from `source_type`.
+Generic API records use `Unknown` unless a scraper supplies an institution;
+the Met adapter explicitly assigns `The Metropolitan Museum of Art`. Future
+metadata can be added with a schema migration and backfilled by requesting each row's
 `source_page_url`; embeddings do not need to be regenerated.
 
 The project intentionally does not include generic HTML scraping or the

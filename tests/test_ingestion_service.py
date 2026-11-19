@@ -13,8 +13,8 @@ def test_process_images_skips_known_and_duplicate_urls(monkeypatch):
 
     monkeypatch.setattr(
         ingestion_service,
-        "existing_image_urls",
-        lambda urls: {"https://example.com/known.jpg"},
+        "existing_embedding_urls",
+        lambda urls, **kwargs: {"https://example.com/known.jpg"},
     )
     monkeypatch.setattr(
         bootstrap, "load_clip_model", lambda: ("model", "processor")
@@ -31,8 +31,8 @@ def test_process_images_skips_known_and_duplicate_urls(monkeypatch):
     )
     monkeypatch.setattr(
         ingestion_service,
-        "save_image_embedding",
-        lambda **kwargs: True,
+        "save_image_record_embedding",
+        lambda *args: True,
     )
 
     assert ingestion_service.process_images(images, delay_seconds=0) == 1

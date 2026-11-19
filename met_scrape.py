@@ -31,7 +31,10 @@ def main() -> None:
         "--batch-size",
         type=int,
         default=1000,
-        help="Number of Met object IDs to inspect per --all run (default: 1000)",
+        help=(
+            "Number of Met object IDs to inspect per --all run "
+            "(default: 1000)"
+        ),
     )
     parser.add_argument(
         "--source-type",
@@ -67,7 +70,7 @@ def main() -> None:
             flush=True,
         )
         images = discover_all_met_images(
-            max_images=args.batch_size,
+            max_images=args.max_images,
             start_index=start_index,
             object_batch_size=args.batch_size,
             random_seed=random_seed,

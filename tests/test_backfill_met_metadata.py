@@ -32,6 +32,7 @@ def test_backfill_metadata_updates_existing_met_record(monkeypatch):
             7,
             {
                 "source_page_url": "https://www.metmuseum.org/art/collection/search/123",
+                "source_institution": "The Metropolitan Museum of Art",
                 "title": "A painting",
                 "artist": "An artist",
                 "date": "1900",

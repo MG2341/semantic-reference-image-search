@@ -14,9 +14,9 @@ from app.domain.models import (
     SearchResult,
 )
 from app.services.search_service import (
-    cosine_similarity,
     embedding_norm,
     normalize_embedding,
+    normalized_dot_product,
 )
 
 
@@ -59,7 +59,7 @@ def init_db() -> None:
                 accession_number TEXT,
                 is_public_domain INTEGER,
                 source_type TEXT NOT NULL DEFAULT 'unknown',
-                source_institution TEXT NOT NULL DEFAULT 'The Metropolitan Museum of Art',
+                source_institution TEXT NOT NULL DEFAULT 'Unknown',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 last_checked_at TEXT
             );
@@ -165,7 +165,7 @@ def _ensure_image_columns(conn: sqlite3.Connection) -> None:
     if "source_institution" not in columns:
         conn.execute(
             "ALTER TABLE images ADD COLUMN source_institution TEXT NOT NULL "
-            "DEFAULT 'The Metropolitan Museum of Art'"
+            "DEFAULT 'Unknown'"
         )
     for column in (
         "artist",
@@ -412,10 +412,34 @@ def existing_image_urls(urls: Sequence[str]) -> set[str]:
     return {row["image_url"] for row in rows}
 
 
+def existing_embedding_urls(
+    urls: Sequence[str],
+    model_name: str = MODEL_NAME,
+    model_revision: str = MODEL_REVISION,
+) -> set[str]:
+    if not urls:
+        return set()
+    placeholders = ",".join("?" for _ in urls)
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT images.image_url
+            FROM images
+            JOIN embeddings ON embeddings.image_id = images.id
+            WHERE images.image_url IN ({placeholders})
+              AND embeddings.model_name = ?
+              AND embeddings.model_revision = ?
+            """,
+            (*urls, model_name, model_revision),
+        ).fetchall()
+    return {row["image_url"] for row in rows}
+
+
 def update_image_metadata(
     image_id: int,
     *,
     source_page_url: str,
+    source_institution: str,
     title: str | None,
     artist: str | None,
     date: str | None,
@@ -441,6 +465,7 @@ def update_image_metadata(
             """
             UPDATE images
             SET source_page_url = ?,
+                source_institution = ?,
                 title = ?,
                 artist = ?,
                 date = ?,
@@ -464,6 +489,7 @@ def update_image_metadata(
             """,
             (
                 source_page_url,
+                source_institution,
                 title,
                 artist,
                 date,
@@ -527,7 +553,8 @@ def search_embeddings(
         embedding = json.loads(row["vector"])
         if embedding_norm(embedding) == 0:
             continue
-        score = cosine_similarity(query, embedding)
+        normalized_embedding = normalize_embedding(embedding, "document_embedding")
+        score = normalized_dot_product(query, normalized_embedding)
         results.append(
             SearchResult(
                 image_url=row["image_url"],

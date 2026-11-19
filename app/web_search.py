@@ -7,9 +7,9 @@ from typing import Sequence
 from app.config import MODEL_NAME, MODEL_REVISION
 from app.db.sqlite import get_connection
 from app.services.search_service import (
-    cosine_similarity,
     embedding_norm,
     normalize_embedding,
+    normalized_dot_product,
 )
 
 
@@ -150,7 +150,7 @@ def search_documents(
     for document in documents:
         if len(document.vector) != len(normalized_query):
             raise ValueError(f"Embedding dimension mismatch for image {document.id}")
-        score = cosine_similarity(normalized_query, document.vector)
+        score = normalized_dot_product(normalized_query, document.vector)
         matches.append(
             SearchMatch(
                 id=document.id,

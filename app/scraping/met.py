@@ -7,6 +7,7 @@ from typing import Any
 
 import requests
 
+from app.domain.models import MET_SOURCE_INSTITUTION
 from app.scraping.models import ScrapedImage
 
 
@@ -27,6 +28,7 @@ def extract_met_metadata(record: Mapping[str, Any], object_id: int) -> dict[str,
             _string_value(record, "objectURL")
             or f"https://www.metmuseum.org/art/collection/search/{object_id}"
         ),
+        "source_institution": MET_SOURCE_INSTITUTION,
         "title": _string_value(record, "title"),
         "artist": _string_value(record, "artistDisplayName"),
         "date": _string_value(record, "objectDate"),

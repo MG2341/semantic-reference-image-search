@@ -5,17 +5,22 @@ from collections.abc import Sequence
 
 import requests
 
-from app.db.sqlite import existing_image_urls
+from app.config import MODEL_NAME, MODEL_REVISION
+from app.db.sqlite import existing_embedding_urls
 from app.scraping.models import ScrapedImage
 from app.services.embedding_service import download_image, get_image_embedding
-from app.services.storage_service import save_image_embedding
+from app.services.storage_service import save_image_record_embedding
 
 
 def process_images(
     images: Sequence[ScrapedImage],
     delay_seconds: float,
 ) -> int:
-    known_urls = existing_image_urls([image.image_url for image in images])
+    known_urls = existing_embedding_urls(
+        [image.image_url for image in images],
+        model_name=MODEL_NAME,
+        model_revision=MODEL_REVISION,
+    )
     pending: list[ScrapedImage] = []
     queued_urls: set[str] = set()
     for image in images:
@@ -37,32 +42,7 @@ def process_images(
         try:
             downloaded_image = download_image(image.image_url)
             embedding = get_image_embedding(model, processor, downloaded_image)
-            saved = save_image_embedding(
-                url=image.image_url,
-                label=image.title or f"Scraped from {image.source_page_url}",
-                embedding=embedding[0].tolist(),
-                source_type=image.source_type,
-                source_page_url=image.source_page_url,
-                source_institution=image.source_institution,
-                artist=image.artist,
-                date=image.date,
-                thumbnail_url=image.thumbnail_url,
-                credit_line=image.credit_line,
-                object_name=image.object_name,
-                medium=image.medium,
-                dimensions=image.dimensions,
-                height=image.height,
-                width=image.width,
-                department=image.department,
-                classification=image.classification,
-                culture=image.culture,
-                period=image.period,
-                dynasty=image.dynasty,
-                reign=image.reign,
-                country=image.country,
-                accession_number=image.accession_number,
-                is_public_domain=image.is_public_domain,
-            )
+            saved = save_image_record_embedding(image, embedding[0].tolist())
             if saved:
                 saved_count += 1
         except (OSError, ValueError, requests.RequestException) as error:

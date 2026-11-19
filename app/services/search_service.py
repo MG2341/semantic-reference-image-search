@@ -29,7 +29,19 @@ def cosine_similarity(
             "Embedding dimension mismatch: "
             f"query has {len(query)} values, document has {len(document)}"
         )
+    return normalized_dot_product(query, document)
+
+
+def normalized_dot_product(
+    first: Sequence[float],
+    second: Sequence[float],
+) -> float:
+    if len(first) != len(second):
+        raise ValueError(
+            "Embedding dimension mismatch: "
+            f"first has {len(first)} values, second has {len(second)}"
+        )
     return sum(
         query_value * document_value
-        for query_value, document_value in zip(query, document)
+        for query_value, document_value in zip(first, second)
     )

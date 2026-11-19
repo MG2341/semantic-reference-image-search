@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.db.sqlite import insert_embedding
-from app.domain.models import DEFAULT_SOURCE_INSTITUTION
+from app.domain.models import DEFAULT_SOURCE_INSTITUTION, ImageRecord
 
 
 def save_image_embedding(
@@ -55,4 +55,36 @@ def save_image_embedding(
         country=country,
         accession_number=accession_number,
         is_public_domain=is_public_domain,
+    )
+
+
+def save_image_record_embedding(
+    record: ImageRecord,
+    embedding: list[float],
+) -> bool:
+    return save_image_embedding(
+        url=record.image_url,
+        label=record.title or f"Scraped from {record.source_page_url}",
+        embedding=embedding,
+        source_type=record.source_type,
+        source_page_url=record.source_page_url,
+        source_institution=record.source_institution,
+        artist=record.artist,
+        date=record.date,
+        thumbnail_url=record.thumbnail_url,
+        credit_line=record.credit_line,
+        object_name=record.object_name,
+        medium=record.medium,
+        dimensions=record.dimensions,
+        height=record.height,
+        width=record.width,
+        department=record.department,
+        classification=record.classification,
+        culture=record.culture,
+        period=record.period,
+        dynasty=record.dynasty,
+        reign=record.reign,
+        country=record.country,
+        accession_number=record.accession_number,
+        is_public_domain=record.is_public_domain,
     )

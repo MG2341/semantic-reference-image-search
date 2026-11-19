@@ -22,7 +22,7 @@ def test_insert_embedding_stores_json_vector(tmp_path, monkeypatch):
     assert row == (
         "https://example.com/image.jpg",
         "example",
-        "The Metropolitan Museum of Art",
+        "Unknown",
         json.dumps([1.0, 2.5]),
     )
 
@@ -58,7 +58,7 @@ def test_init_db_adds_source_institution_to_existing_images(tmp_path, monkeypatc
             "SELECT source_institution FROM images"
         ).fetchone()
 
-    assert row == ("The Metropolitan Museum of Art",)
+    assert row == ("Unknown",)
 
 
 def test_init_db_repairs_embedding_dimension_metadata(tmp_path, monkeypatch):
@@ -221,6 +221,41 @@ def test_search_embeddings_rejects_dimension_mismatch(tmp_path, monkeypatch):
         assert "Embedding dimension mismatch" in str(error)
     else:
         raise AssertionError("Expected a dimension mismatch to raise ValueError")
+
+
+def test_existing_embedding_urls_are_model_version_aware(tmp_path, monkeypatch):
+    database_path = tmp_path / "model-aware.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    url = "https://example.com/image.jpg"
+    sqlite.insert_embedding(
+        url,
+        "example",
+        [1.0, 0.0],
+        model_name="old-model",
+        model_revision="old-revision",
+    )
+
+    assert sqlite.existing_embedding_urls(
+        [url],
+        model_name="current-model",
+        model_revision="current-revision",
+    ) == set()
+
+    sqlite.insert_embedding(
+        url,
+        "example",
+        [1.0, 0.0],
+        model_name="current-model",
+        model_revision="current-revision",
+    )
+
+    assert sqlite.existing_embedding_urls(
+        [url],
+        model_name="current-model",
+        model_revision="current-revision",
+    ) == {url}
 
 
 def test_scrape_progress_defaults_and_updates(tmp_path, monkeypatch):

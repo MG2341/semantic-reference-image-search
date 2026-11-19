@@ -13,7 +13,8 @@ SourceType = Literal[
     "unknown",
 ]
 
-DEFAULT_SOURCE_INSTITUTION = "The Metropolitan Museum of Art"
+DEFAULT_SOURCE_INSTITUTION = "Unknown"
+MET_SOURCE_INSTITUTION = "The Metropolitan Museum of Art"
 
 
 @dataclass(frozen=True)
