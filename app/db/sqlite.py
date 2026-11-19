@@ -22,6 +22,7 @@ from app.services.search_service import (
 
 DB_PATH = Path(os.getenv("SQLITE_DB_PATH", "data/reference_images.db"))
 DEFAULT_SOURCE_TYPE = "unknown"
+SQLITE_VARIABLE_BATCH_SIZE = 900
 
 
 def get_connection() -> sqlite3.Connection:
@@ -403,13 +404,18 @@ def insert_embedding(
 def existing_image_urls(urls: Sequence[str]) -> set[str]:
     if not urls:
         return set()
-    placeholders = ",".join("?" for _ in urls)
+
+    existing: set[str] = set()
     with closing(get_connection()) as conn:
-        rows = conn.execute(
-            f"SELECT image_url FROM images WHERE image_url IN ({placeholders})",
-            tuple(urls),
-        ).fetchall()
-    return {row["image_url"] for row in rows}
+        for offset in range(0, len(urls), SQLITE_VARIABLE_BATCH_SIZE):
+            batch = urls[offset : offset + SQLITE_VARIABLE_BATCH_SIZE]
+            placeholders = ",".join("?" for _ in batch)
+            rows = conn.execute(
+                f"SELECT image_url FROM images WHERE image_url IN ({placeholders})",
+                tuple(batch),
+            ).fetchall()
+            existing.update(row["image_url"] for row in rows)
+    return existing
 
 
 def update_image_metadata(

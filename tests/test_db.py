@@ -142,6 +142,24 @@ def test_insert_embedding_skips_duplicate_url(tmp_path, monkeypatch):
     ]
 
 
+def test_existing_image_urls_handles_more_than_sqlite_variable_limit(
+    tmp_path, monkeypatch
+):
+    database_path = tmp_path / "many-urls.db"
+    monkeypatch.setattr(sqlite, "DB_PATH", database_path)
+
+    sqlite.init_db()
+    existing_url = "https://example.com/existing.jpg"
+    sqlite.insert_embedding(existing_url, "existing", [1.0])
+    urls = [
+        f"https://example.com/image-{index}.jpg"
+        for index in range(1000)
+    ]
+    urls.append(existing_url)
+
+    assert sqlite.existing_image_urls(urls) == {existing_url}
+
+
 def test_insert_embedding_stores_model_metadata(tmp_path, monkeypatch):
     database_path = tmp_path / "reference_images.db"
     monkeypatch.setattr(sqlite, "DB_PATH", database_path)
