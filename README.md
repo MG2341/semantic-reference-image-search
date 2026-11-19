@@ -138,7 +138,8 @@ file=<image>
 ```
 
 The web page provides a `Search by image` control that sends local image files
-to this endpoint. Uploads are limited to 10 MB and must be valid image files.
+to this endpoint. Uploaded images are resized to a maximum dimension of 2048
+pixels before embedding and must be valid image files.
 
 ## Demo
 

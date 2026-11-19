@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-from io import BytesIO
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from pydantic import BaseModel
 
 from app.bootstrap import initialize_database, load_clip_model
 from app.services.embedding_service import get_image_embedding, get_text_embedding
+from app.services.image_service import prepare_image_for_search
 from app.services.search_pipeline import EmbeddingSearchPipeline
 from app.web_search import SearchMatch, load_search_documents, search_documents
-
-
-MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 class SearchResponse(BaseModel):
@@ -100,16 +97,10 @@ async def search_by_image(
             detail="file must be an image",
         )
 
-    contents = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
-    if len(contents) > MAX_IMAGE_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail="image file is too large",
-        )
-
     try:
-        image = Image.open(BytesIO(contents)).convert("RGB")
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+        await file.seek(0)
+        image = prepare_image_for_search(file.file)
+    except (OSError, ValueError, Image.DecompressionBombError) as error:
         raise HTTPException(
             status_code=400,
             detail="file is not a valid image",
