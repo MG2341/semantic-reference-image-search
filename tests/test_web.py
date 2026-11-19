@@ -58,7 +58,7 @@ def test_search_endpoint_loads_resources_at_startup(monkeypatch):
 
     assert page_response.status_code == 200
     assert "Semantic Reference Image Search" in page_response.text
-    assert "Search by image" in page_response.text
+    assert "Choose image" in page_response.text
     assert response.status_code == 200
     assert response.json()[0] == {
         "id": 7,
