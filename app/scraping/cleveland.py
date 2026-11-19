@@ -79,6 +79,7 @@ def discover_cleveland_images(
     all_records: bool = False,
     batch_size: int = MAX_API_PAGE_SIZE,
     retries: int = 3,
+    start_index: int = 0,
 ) -> list[ScrapedImage]:
     if max_images is not None and max_images < 1:
         raise ValueError("max_images must be at least 1")
@@ -90,10 +91,12 @@ def discover_cleveland_images(
         )
     if retries < 0:
         raise ValueError("retries cannot be negative")
+    if start_index < 0:
+        raise ValueError("start_index cannot be negative")
 
     images: list[ScrapedImage] = []
     seen_urls: set[str] = set()
-    skip = 0
+    skip = start_index
 
     while True:
         params: dict[str, Any] = {

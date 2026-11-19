@@ -92,3 +92,21 @@ def test_discover_cleveland_images_small_run_stops_at_limit(monkeypatch):
     images = cleveland.discover_cleveland_images(max_images=1)
 
     assert len(images) == 1
+
+
+def test_discover_cleveland_images_starts_at_requested_index(monkeypatch):
+    requested = []
+
+    def request(url, **kwargs):
+        requested.append(kwargs["params"]["skip"])
+        return _Response({"data": [_record()], "info": {"total": 17462}})
+
+    monkeypatch.setattr(cleveland.requests, "get", request)
+
+    cleveland.discover_cleveland_images(
+        max_images=1,
+        all_records=False,
+        start_index=17461,
+    )
+
+    assert requested == [17461]

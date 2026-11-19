@@ -121,6 +121,19 @@ To process the complete image-bearing CMA listing, use paginated requests:
 python cleveland_scrape.py --all --batch-size 1000 --delay 1
 ```
 
+To resume an interrupted `--all` run:
+
+```powershell
+python cleveland_scrape.py --all --resume --batch-size 1000 --delay 0.1
+```
+
+The persisted offset is updated while ingestion runs. To recover from a known
+terminal image number manually, use `--start-index` with the API offset:
+
+```powershell
+python cleveland_scrape.py --all --start-index 17461 --batch-size 1000 --delay 0.1
+```
+
 The API is paginated in batches of at most 1000 records. Existing image URLs
 are deduplicated by the ingestion service, so rerunning the command is safe.
 
