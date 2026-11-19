@@ -103,10 +103,27 @@
     }
 
     .selected-file {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
       color: #d7c6b3;
       min-height: 1.4rem;
       font-size: .9rem;
       margin: -.4rem 0 1rem;
+    }
+
+    .selected-file:empty {
+      display: none;
+    }
+
+    .selected-file img {
+      display: block;
+      width: 4rem;
+      height: 4rem;
+      border: 1px solid #66564a;
+      border-radius: .35rem;
+      object-fit: cover;
+      background: #241f1b;
     }
 
     .examples {
@@ -225,11 +242,16 @@
     const status = document.querySelector("#status");
     const results = document.querySelector("#results");
     let selectedImage = null;
+    let selectedImageUrl = null;
 
     function clearSelectedImage() {
       selectedImage = null;
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl);
+      selectedImageUrl = null;
+    }
       imageInput.value = "";
-      selectedFile.textContent = "";
+    selectedFile.replaceChildren();
     }
 
     function yearFromDate(date) {
@@ -344,7 +366,19 @@
       if (file) {
         queryInput.value = "";
         selectedImage = file;
-        selectedFile.textContent = `Selected image: ${file.name}. Click Search to continue.`;
+        if (selectedImageUrl) {
+          URL.revokeObjectURL(selectedImageUrl);
+        }
+        selectedImageUrl = URL.createObjectURL(file);
+
+        const preview = document.createElement("img");
+        preview.src = selectedImageUrl;
+        preview.alt = `Selected image preview: ${file.name}`;
+
+        const label = document.createElement("span");
+        label.textContent = `Selected image: ${file.name}. Click Search to continue.`;
+
+        selectedFile.replaceChildren(preview, label);
       }
     });
     queryInput.addEventListener("input", () => {
