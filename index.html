@@ -269,6 +269,7 @@
         const meta = document.createElement("div");
         meta.className = "card-meta";
         meta.textContent = [
+          item.museum ? `Museum: ${item.museum}` : "Unknown museum",
           item.artist || "Unknown artist",
           yearFromDate(item.date),
           item.object_name,
