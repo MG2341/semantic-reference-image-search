@@ -50,6 +50,56 @@ def test_process_images_skips_known_and_duplicate_urls(monkeypatch):
     assert progress == [(1, 1, 1)]
 
 
+def test_process_images_reports_absolute_progress(monkeypatch):
+    images = [
+        ImageRecord("https://example.com/one.jpg", "https://api.example.com"),
+        ImageRecord("https://example.com/two.jpg", "https://api.example.com"),
+    ]
+    printed = []
+
+    monkeypatch.setattr(
+        ingestion_service,
+        "existing_image_urls",
+        lambda urls: set(),
+    )
+    monkeypatch.setattr(
+        bootstrap, "load_clip_model", lambda: ("model", "processor")
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "download_image",
+        lambda url: "image",
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "get_image_embedding",
+        lambda model, processor, image: _Embedding(),
+    )
+    monkeypatch.setattr(
+        ingestion_service,
+        "save_image_embedding",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "builtins.print",
+        lambda *args, **kwargs: printed.append(" ".join(str(arg) for arg in args)),
+    )
+
+    progress = []
+    ingestion_service.process_images(
+        images,
+        delay_seconds=0,
+        progress_callback=lambda processed, total, saved: progress.append(
+            (processed, total, saved)
+        ),
+        progress_offset=17461,
+        progress_total=41861,
+    )
+
+    assert any("Processing image 17462/41861" in line for line in printed)
+    assert progress[-1] == (17463, 41861, 2)
+
+
 class _Embedding:
     def __getitem__(self, index):
         assert index == 0

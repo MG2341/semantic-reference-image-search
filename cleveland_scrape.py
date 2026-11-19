@@ -124,6 +124,8 @@ def main() -> None:
         images,
         args.delay,
         progress_callback=progress_callback,
+        progress_offset=start_index,
+        progress_total=start_index + len(images) if args.all else None,
     )
     if args.all:
         set_scrape_progress(

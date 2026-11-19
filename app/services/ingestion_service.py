@@ -19,6 +19,8 @@ def process_images(
     images: Sequence[ScrapedImage],
     delay_seconds: float,
     progress_callback: ProgressCallback | None = None,
+    progress_offset: int = 0,
+    progress_total: int | None = None,
 ) -> int:
     known_urls = existing_image_urls([image.image_url for image in images])
     pending: list[ScrapedImage] = []
@@ -35,9 +37,12 @@ def process_images(
     model, processor = load_clip_model()
     saved_count = 0
     last_progress_at = time.monotonic()
+    absolute_total = progress_total or progress_offset + len(pending)
     for index, image in enumerate(pending):
+        absolute_processed = progress_offset + index + 1
         print(
-            f"Processing image {index + 1}/{len(pending)}: {image.image_url}",
+            f"Processing image {absolute_processed}/{absolute_total}: "
+            f"{image.image_url}",
             flush=True,
         )
         try:
@@ -80,7 +85,11 @@ def process_images(
                 now - last_progress_at >= PROGRESS_INTERVAL_SECONDS
                 or processed_count == len(pending)
             ):
-                progress_callback(processed_count, len(pending), saved_count)
+                progress_callback(
+                    progress_offset + processed_count,
+                    absolute_total,
+                    saved_count,
+                )
                 last_progress_at = now
             if index < len(pending) - 1:
                 time.sleep(delay_seconds)
